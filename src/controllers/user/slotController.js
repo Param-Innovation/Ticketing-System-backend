@@ -65,7 +65,7 @@
 // }
 
 const moment = require("moment-timezone");
-const Slot = require("../models/slotModel");
+const Slot = require("../../models/slotModel");
 
 exports.getOrCreateSlots = async (req, res) => {
   const dateInput = req.params.date || req.body.date;

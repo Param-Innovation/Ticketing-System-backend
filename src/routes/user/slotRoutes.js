@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const slotController = require('../controllers/slotController');
+const slotController = require('../../controllers/user/slotController');
 
 // Route to handle POST requests where the date might be in the body
 router.get('/', slotController.getOrCreateSlots);
