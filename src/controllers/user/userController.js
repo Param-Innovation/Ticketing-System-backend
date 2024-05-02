@@ -1,8 +1,21 @@
 const User = require('../models/userModel');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+function generateToken(user) {
+    const payload = {
+        userId: user._id,
+        email: user.email
+    };
+    const secretKey = process.env.JWT_SECRET || 'test-secret-key';
+    const options = { expiresIn: '2h' }; // Token expires in 2 hours
+    return jwt.sign(payload, secretKey, options);
+}
 
 
 // SignIn function...
+// @Body params:
+// email, password
 
 exports.signIn = async (req, res) => {
     const { email, password } = req.body;
@@ -19,11 +32,18 @@ exports.signIn = async (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
+        // Generate JWT token for authentication
+        const token = generateToken(user);
+
         res.status(200).json({
             message: 'User signed in successfully',
-            userId: user._id,
-            username: user.username,
-            email: user.email
+            user: {
+                userId: user._id,
+                username: user.username,
+                email: user.email,
+                phone_number: user.phone_number 
+            },
+            token: token
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -31,6 +51,8 @@ exports.signIn = async (req, res) => {
 };
 
 // SignUp function...
+// @Body Params:
+// usernmae, email, password, phone_number
 
 exports.signUp = async (req, res) => {
     const { username, email, password, phone_number } = req.body;
