@@ -1,6 +1,6 @@
-const User = require('../models/userModel');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+import User from '../../models/userModel.js';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 function generateToken(user) {
     const payload = {
@@ -17,7 +17,7 @@ function generateToken(user) {
 // @Body params:
 // email, password
 
-exports.signIn = async (req, res) => {
+export const signIn = async (req, res) => {
     const { email, password } = req.body;
 
     try {
@@ -54,7 +54,7 @@ exports.signIn = async (req, res) => {
 // @Body Params:
 // usernmae, email, password, phone_number
 
-exports.signUp = async (req, res) => {
+export const signUp = async (req, res) => {
     const { username, email, password, phone_number } = req.body;
     // console.log(req.body)
 

@@ -1,6 +1,7 @@
-// const { MongoClient, ServerApiVersion } = require('mongodb');
-require('dotenv').config(); 
-const mongoose = require("mongoose");
+import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+
+dotenv.config();
 
 // // MongoDB URI
 // const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@${process.env.DB_CLUSTER_URL}/`;
@@ -23,4 +24,4 @@ const connectDB = () => {
     });
 }
 
-module.exports = connectDB;
+export default connectDB;

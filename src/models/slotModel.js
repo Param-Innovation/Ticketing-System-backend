@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
 const slotSchema = new mongoose.Schema({
     date: { type: Date, required: true, unique: true },
@@ -9,4 +9,4 @@ const slotSchema = new mongoose.Schema({
 });
 
 const Slot = mongoose.model('Slot', slotSchema);
-module.exports = Slot;
+export default Slot;

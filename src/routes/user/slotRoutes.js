@@ -1,10 +1,10 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const slotController = require('../../controllers/user/slotController');
+import { getOrCreateSlots } from '../../controllers/user/slotController.js'
 
 // Route to handle POST requests where the date might be in the body
-router.get('/', slotController.getOrCreateSlots);
+router.get('/', getOrCreateSlots);
 // Route for compatibility with direct date in URL
-router.get('/:date', slotController.getOrCreateSlots);
+router.get('/:date', getOrCreateSlots);
 
-module.exports = router;
+export default router;
