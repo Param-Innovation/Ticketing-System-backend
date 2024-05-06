@@ -1,9 +1,11 @@
 import Ticket from "../../models/ticketModel.js";
+import User from "../../models/userModel.js";
 import GuestUser from "../../models/guestUserModel.js";
 import Slot from "../../models/slotModel.js";
 import jwt from "jsonwebtoken";
 import moment from "moment-timezone";
 
+// BOOK TICKETS FOR REGISTERD OR GUEST USER
 export const bookTickets = async (req, res) => {
   const { bookingDate, slotIndex, numberOfTickets, name, email, phoneNumber } =
     req.body;
@@ -80,6 +82,55 @@ export const bookTickets = async (req, res) => {
   } catch (error) {
     if (error.name === "JsonWebTokenError") {
       return res.status(401).json({ message: "Invalid token" });
+    }
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// FETCH BOOKINGS FOR REGISTERD OR GUEST USER
+export const getTickets = async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  const email = req.body.email; // Received from x-www-form-urlencoded
+
+  try {
+    if (token) {
+      // Decode token to get user info
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findById(decoded.userId);
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const tickets = await Ticket.find({ userId: user._id });
+      if (tickets.length === 0) {
+        return res
+          .status(404)
+          .json({ message: "No tickets found for this user" });
+      }
+      return res.status(200).json(tickets);
+    } else if (email) {
+      // Handle guest user
+      const guestUser = await GuestUser.findOne({ email });
+      if (!guestUser) {
+        return res.status(404).json({ message: "Guest user not found" });
+      }
+
+      const tickets = await Ticket.find({ guestUserId: guestUser._id });
+      if (tickets.length === 0) {
+        return res
+          .status(404)
+          .json({ message: "No tickets found for this guest user" });
+      }
+      return res.status(200).json(tickets);
+    } else {
+      return res
+        .status(400)
+        .json({ message: "No authentication data provided" });
+    }
+  } catch (error) {
+    if (error.name === "JsonWebTokenError") {
+      return res.status(401).json({ message: "Invalid or expired token" });
     }
     res.status(500).json({ message: "Server error", error: error.message });
   }
