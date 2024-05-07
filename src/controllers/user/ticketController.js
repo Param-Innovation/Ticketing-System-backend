@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import moment from "moment-timezone";
 
 export const bookTickets = async (req, res) => {
-  const { bookingDate, slotIndex, numberOfTickets, name, email, phoneNumber } =
+  const { bookingDate, slotIndex, ticketTypes, name, email, phoneNumber } =
     req.body;
   const token = req.headers.authorization?.split(" ")[1]; // Assumes "Bearer <token>"
 
@@ -49,7 +49,11 @@ export const bookTickets = async (req, res) => {
 
     // Check ticket availability for the slot
     const selectedSlot = slotDocument.slots[slotIndex];
-    if (selectedSlot.ticketsAvailable < numberOfTickets) {
+    const totalTicketsRequested = ticketTypes.reduce(
+      (sum, type) => sum + type.numberOfTickets,
+      0
+    );
+    if (selectedSlot.ticketsAvailable < totalTicketsRequested) {
       return res.status(400).json({ message: "Not enough tickets available" });
     }
 
@@ -64,9 +68,9 @@ export const bookTickets = async (req, res) => {
       userId: userType === "Registered" ? userEntry._id : undefined,
       guestUserId: userType === "Guest" ? userEntry._id : undefined,
       userType,
-      bookingDate,
+      bookingDate: moment.tz(bookingDate, "Asia/Kolkata").toDate(),
       timeSlot: selectedSlot.startTime,
-      numberOfTickets,
+      ticketTypes,
     };
 
     const newTicket = new Ticket(ticketData);
