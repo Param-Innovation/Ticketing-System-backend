@@ -25,7 +25,7 @@ jobs:
           credentials: ${{ secrets.credentials }}
           filename: "archive.zip"
           folderId: ${{ secrets.folderId }}
-          name: "documentation.zip" # optional string
+          name: "ticketing_system.zip" # optional string
           overwrite: "true" # optional boolean
       - name: Make Directory Structure
         run: |
