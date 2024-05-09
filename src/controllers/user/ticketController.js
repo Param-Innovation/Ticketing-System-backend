@@ -3,7 +3,9 @@ import GuestUser from "../../models/guestUserModel.js";
 import Slot from "../../models/slotModel.js";
 import jwt from "jsonwebtoken";
 import moment from "moment-timezone";
+import User from "../../models/userModel.js";
 
+// Book tickets for User/Guest User
 export const bookTickets = async (req, res) => {
   const { bookingDate, slotIndex, ticketTypes, name, email, phoneNumber } =
     req.body;
@@ -86,5 +88,58 @@ export const bookTickets = async (req, res) => {
       return res.status(401).json({ message: "Invalid token" });
     }
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// GET list of Tickets/Bookings done by any User/Guest User
+export const getTicketsByUser = async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1]; // Bearer <TOKEN>
+  const {phoneNumber} = req.body;
+  // console.log(req.body)
+
+  try {
+    let user, tickets;
+    if (token) {
+      // Handling registered User
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      user = await User.findById(decoded.userId);
+
+      if (!user) {
+        return res.status(404).json({ message: "Registered user not found." });
+      }
+
+      tickets = await Ticket.find({ userId: user._id });
+    } else if (phoneNumber) {
+      // Handling Guest User
+      user = await GuestUser.findOne({ phoneNumber });
+      if (!user) {
+        return res.status(404).json({ message: "Guest User Not found" });
+      }
+
+      tickets = await Ticket.find({ guestUserId: user._id });
+    } else {
+      return res.status(400).json({ message: "No credentials provided" });
+    }
+
+    // Handling the case where no tickets are found
+    if (!tickets || tickets.length === 0) {
+      return res.status(200).json({
+        message: "No tickets booked by this user",
+        type: token ? "Registered" : "Guest",
+        user: user,
+        tickets: [],
+      });
+    }
+
+    // If tickets are found
+    res.json({
+      type: token ? "Registered" : "Guest",
+      user: user,
+      tickets: tickets,
+    });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
   }
 };

@@ -15,11 +15,10 @@ export const authenticateToken = async (req, res, next) => {
         const decoded = jwt.verify(token, secretKey);
         
         console.log(decoded);
-        const id = new mongoose.Types.ObjectId(decoded.id); // Ensure the id is a valid ObjectId
+        const id = new mongoose.Types.ObjectId(decoded.userId); // Ensure the id is a valid ObjectId
         
         if (decoded.role === 'admin') {
             const admin = await Admin.findById(id);
-            console.log("admin not found")
             if (!admin) return res.sendStatus(403); // Admin not found
             req.user = admin;
             req.user.role = 'admin'; // Ensure the role is clearly set
