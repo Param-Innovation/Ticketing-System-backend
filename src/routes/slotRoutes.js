@@ -6,4 +6,4 @@ router.get('/:date', slotController.getOrCreateSlots);
 
 module.exports = router;
 
-// Tetsing workflow
+// Tetsing workflow actions
