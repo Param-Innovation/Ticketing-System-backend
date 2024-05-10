@@ -11,7 +11,8 @@ connectDB();
 
 // Mount user routes at /api/users
 app.use('/api/users', userRoutes);
-// Mount slot routes at /api/slots
+// Mount slot routes at /api/slots shivam
 app.use('/api/slots', slotRoutes);
 
 module.exports = app;
+//backup
