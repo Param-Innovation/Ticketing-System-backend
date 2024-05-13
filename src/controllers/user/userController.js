@@ -5,7 +5,8 @@ import jwt from 'jsonwebtoken';
 function generateToken(user) {
     const payload = {
         userId: user._id,
-        email: user.email
+        email: user.email,
+        role : 'user'
     };
     const secretKey = process.env.JWT_SECRET || 'test-secret-key';
     const options = { expiresIn: '2h' }; // Token expires in 2 hours
