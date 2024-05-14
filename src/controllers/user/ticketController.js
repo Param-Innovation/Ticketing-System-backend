@@ -5,6 +5,7 @@ import Slot from "../../models/slotModel.js";
 import jwt from "jsonwebtoken";
 import moment from "moment-timezone";
 import Pricing from "../../models/pricingModel.js";
+import CanceledTicket from "../../models/canceledTicketModel.js";
 
 async function calculateTotalAmount(ticketTypes, bookingDate) {
   const pricing = await Pricing.findOne().sort({ lastUpdated: -1 }).limit(1); // Assuming the latest pricing is what we want
@@ -211,15 +212,6 @@ export const cancelTickets = async (req, res) => {
       },
     });
 
-    // console.log(bookingDateUTC);
-    // console.log(ticket.bookingDate);
-    // console.log(slotDocument);
-    // console.log(
-    //   await Slot.findOne({
-    //     date: ticket.bookingDate, // Ensuring date format matches
-    //   })
-    // );
-
     if (!slotDocument) {
       return res
         .status(404)
@@ -242,6 +234,19 @@ export const cancelTickets = async (req, res) => {
       0
     );
     await slotDocument.save();
+
+    // console.log(ticket.ticketTypes)
+
+    const newCanceledTicket = new CanceledTicket({
+      ticketId: ticket._id,
+      userId: ticket.userId || ticket.guestUserId,
+      userType: ticket.userId ? "Registered" : "Guest",
+      bookingDate: ticket.bookingDate,
+      canceledDate: new Date(),
+      totalAmountRefunded: ticket.totalAmount,
+      ticketDetails: ticket.ticketTypes,
+    });
+    await newCanceledTicket.save();
 
     // Proceed to delete the ticket
     await Ticket.findByIdAndDelete(ticketId);
