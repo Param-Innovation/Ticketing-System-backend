@@ -11,6 +11,8 @@
   "author": "Param",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-sns": "^3.577.0",
+    "aws-sdk": "^2.1621.0",
     "bcrypt": "^5.1.1",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
