@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import AWS from "aws-sdk";
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import OTP from "../../models/otpModel.js";
+import GuestUser from "../../models/guestUserModel.js";
 
 dotenv.config();
 
@@ -15,13 +16,32 @@ dotenv.config();
 // };
 // AWS.config.update(awsConfig);
 
-const sns = new SNSClient({
-    region : process.env.AWS_SNS_REGION,
-    credentials: {
-        accessKeyId: process.env.AWS_SNS_ACCESS_KEY,
-        secretAccessKey: process.env.AWS_SNS_SECRET_ACCESS_KEY
+const verifyOtp = async (phoneNumber, otp) => {
+  try {
+    const otpRecord = await OTP.findOne({ phoneNumber });
+    if (!otpRecord) {
+      return { success: false, message: "No OTP found for this phone number." };
     }
-})
+
+    const isCorrectOtp = await bcrypt.compare(otp, otpRecord.code);
+    if (!isCorrectOtp) {
+      return { success: false, message: "Incorrect OTP or OTP has expired." };
+    }
+
+    return { success: true, message: "OTP verified successfully." };
+  } catch (error) {
+    console.error("Error verifying OTP:", error);
+    return { success: false, message: "Server error", error: error.message };
+  }
+};
+
+const sns = new SNSClient({
+  region: process.env.AWS_SNS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_SNS_ACCESS_KEY,
+    secretAccessKey: process.env.AWS_SNS_SECRET_ACCESS_KEY,
+  },
+});
 
 function generateToken(user) {
   const payload = {
@@ -157,34 +177,72 @@ export const sendOTP = async (req, res) => {
       },
     };
 
-    const command = new PublishCommand(params)
+    const command = new PublishCommand(params);
 
     const publishTextPromise = await sns.send(command);
 
-    publishTextPromise
-      .then(function (data) {
-        console.log("Success Data:", data);
-        res.json({ MessageID: data.MessageId, OTP: otpCode }); // Simplified response handling
-      })
-      .catch(function (err) {
-        console.error("Error sending SMS:", err);
-        // Extract useful information from the error object
-        const errorResponse = {
-          message: err.message, // Generally safe to expose
-          code: err.code, // AWS error code if available
-          statusCode: err.statusCode, // HTTP status code from AWS response if available
-          retryable: err.retryable, // Indicates if the request can be retried
-        };
-        res.status(500).json({ Error: errorResponse });
-      });
+    // publishTextPromise
+    //   .then(function (data) {
+    //     console.log("Success Data:", data);
+    //     res.json({ MessageID: data.MessageId, OTP: otpCode }); // Simplified response handling
+    //   })
+    //   .catch(function (err) {
+    //     console.error("Error sending SMS:", err);
+    //     // Extract useful information from the error object
+    //     const errorResponse = {
+    //       message: err.message, // Generally safe to expose
+    //       code: err.code, // AWS error code if available
+    //       statusCode: err.statusCode, // HTTP status code from AWS response if available
+    //       retryable: err.retryable, // Indicates if the request can be retried
+    //     };
+    //     res.status(500).json({ Error: errorResponse });
+    //   });
 
-    // console.log(publishTextPromise);
+    console.log(publishTextPromise);
 
-    // res
-    //   .status(200)
-    //   .json({ message: "OTP sent successfully", data: updatedOtp });
+    res
+      .status(200)
+      .json({ message: "OTP sent successfully", data: updatedOtp });
   } catch (error) {
     console.error("Error in OTP handling:", error);
     res.status(500).json({ error: "Server error", details: error.message });
   }
+};
+
+// Verify guestUser function...
+// @Body Params:
+// phoneNumber, otp
+
+export const verifyGuestUser = async (req, res) => {
+  const { phoneNumber, otp } = req.body;
+  const result = await verifyOtp(phoneNumber, otp);
+  if (!result.success) {
+    return res.status(400).json({ message: result.message });
+  }
+
+  // Make changes here regarding the Guest User----------------->
+  // If the user is a guest user, generate a token
+  if (result.success) {
+    const guestUser = await GuestUser.findOne({ phoneNumber });
+    const payload = {
+      userId: guestUser._id,
+      email: guestUser.email,
+      role: "guest",
+    };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+
+    return res.status().json({
+      message: "Guest user verified successfully.",
+      token: token,
+    });
+  }
+
+  res
+    .status(200)
+    .json({
+      message:
+        "OTP verified successfully but no user found for token generation.",
+    });
 };
