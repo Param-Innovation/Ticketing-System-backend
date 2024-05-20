@@ -158,51 +158,39 @@ export const sendOTP = async (req, res) => {
   const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
   const expiryDate = new Date(new Date().getTime() + 3 * 60 * 1000); // 3 minutes from now
 
+  // Encrypt the OTP code
+  const saltRounds = 10;
+  const hashedOtpCode = await bcrypt.hash(otpCode, saltRounds);
+
+  // Sending OTP via AWS SNS
+  const params = {
+    Message: `Your OTP is: ${otpCode}`, // Message text
+    PhoneNumber: phoneNumber,
+    MessageAttributes: {
+      "AWS.SNS.SMS.SMSType": {
+        DataType: "String",
+        StringValue: "Transactional",
+      },
+    },
+  };
+
+  const command = new PublishCommand(params);
+
   try {
+    
+    
+    const publishTextPromise = await sns.send(command);
+    
+    console.log(publishTextPromise);
+    
     const updatedOtp = await OTP.findOneAndUpdate(
       { phoneNumber },
-      { code: otpCode, expires: expiryDate },
+      { code: hashedOtpCode, expires: expiryDate },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
-
-    // Sending OTP via AWS SNS
-    const params = {
-      Message: `Your OTP is: ${otpCode}`, // Message text
-      PhoneNumber: phoneNumber,
-      MessageAttributes: {
-        "AWS.SNS.SMS.SMSType": {
-          DataType: "String",
-          StringValue: "Transactional",
-        },
-      },
-    };
-
-    const command = new PublishCommand(params);
-
-    const publishTextPromise = await sns.send(command);
-
-    // publishTextPromise
-    //   .then(function (data) {
-    //     console.log("Success Data:", data);
-    //     res.json({ MessageID: data.MessageId, OTP: otpCode }); // Simplified response handling
-    //   })
-    //   .catch(function (err) {
-    //     console.error("Error sending SMS:", err);
-    //     // Extract useful information from the error object
-    //     const errorResponse = {
-    //       message: err.message, // Generally safe to expose
-    //       code: err.code, // AWS error code if available
-    //       statusCode: err.statusCode, // HTTP status code from AWS response if available
-    //       retryable: err.retryable, // Indicates if the request can be retried
-    //     };
-    //     res.status(500).json({ Error: errorResponse });
-    //   });
-
-    console.log(publishTextPromise);
-
     res
       .status(200)
-      .json({ message: "OTP sent successfully", data: updatedOtp });
+      .json({ message: "OTP sent successfully", data: { phoneNumber: updatedOtp.phoneNumber, expires: updatedOtp.expires } });
   } catch (error) {
     console.error("Error in OTP handling:", error);
     res.status(500).json({ error: "Server error", details: error.message });
