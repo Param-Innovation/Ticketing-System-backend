@@ -3,7 +3,8 @@ import { setPrice } from '../../controllers/admin/pricingController.js';
 import { adminLogin } from '../../controllers/admin/adminController.js'; // createAdmin can be added if new admin needs to be added
 import { authenticateToken } from '../../middleware/authenticate.js';
 import { getUserByType } from '../../controllers/admin/userListController.js';
-import { getAllBookings } from '../../controllers/admin/bookingsController.js';
+import { cancelBookings, editBooking, getAllBookings } from '../../controllers/admin/bookingsController.js';
+import { addEvent, editEvent, removeEvent } from '../../controllers/admin/eventController.js';
 
 const router = express.Router();
 
@@ -12,8 +13,20 @@ const router = express.Router();
 router.post('/admin-login', adminLogin)
 // Endpoint to set pricing for different ticket types
 router.post('/set-price', authenticateToken, setPrice);
+// Endpoint for listing the user(s)
 router.get('/users', authenticateToken, getUserByType);
+// Endpoint for listing the Booking(s) / Ticket(s)
 router.get('/bookings', authenticateToken, getAllBookings);
+// Endpoint for Editing a particular Booking / Ticket
+router.put('/bookings/:id', authenticateToken, editBooking);
+// Endpoint for cancelling Booking(s) / Ticket(s)
+router.put('/bookings/cancel', authenticateToken, cancelBookings);
+// Endpoint to Add a new event
+router.post('/events', authenticateToken, addEvent);
+// Endpoint to Edit an existing event
+router.put('/events/:id', authenticateToken, editEvent);
+// Endpoint to Remove an event
+router.delete('/events/:id', authenticateToken, removeEvent);
 
 
 export default router;
