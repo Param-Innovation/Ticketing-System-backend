@@ -13,7 +13,7 @@ export const authenticateToken = async (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, secretKey);
-        console.log(decoded);
+        // console.log(decoded);
         const id = new mongoose.Types.ObjectId(decoded.userId); // Ensure the id is a valid ObjectId
         
         if (decoded.role === 'admin') {

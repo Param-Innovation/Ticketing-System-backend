@@ -5,6 +5,8 @@ import { authenticateToken } from '../../middleware/authenticate.js';
 import { getUserByType } from '../../controllers/admin/userListController.js';
 import { cancelBookings, editBooking, getAllBookings } from '../../controllers/admin/bookingsController.js';
 import { addEvent, editEvent, removeEvent } from '../../controllers/admin/eventController.js';
+import { addCoupon, removeCoupon } from '../../controllers/admin/couponController.js';
+import { ReturnDocument } from 'mongodb';
 
 const router = express.Router();
 
@@ -27,6 +29,10 @@ router.post('/events', authenticateToken, addEvent);
 router.put('/events/:id', authenticateToken, editEvent);
 // Endpoint to Remove an event
 router.delete('/events/:id', authenticateToken, removeEvent);
+// Add a new coupon
+router.post('/coupon', authenticateToken, addCoupon);
+// Delete a new coupon
+router.delete('/coupon/:couponId', authenticateToken, removeCoupon);
 
 
 export default router;

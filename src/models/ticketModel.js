@@ -25,6 +25,8 @@ const ticketSchema = new mongoose.Schema({
   timeSlot: { type: String, required: true },
   ticketTypes: [ticketTypeSchema],
   totalAmount: { type: Number, required: true },
+  appliedCoupon: { type: mongoose.Schema.Types.ObjectId, ref: "Coupon", required: false },
+  specialEventId: { type: mongoose.Schema.Types.ObjectId, ref: "Event", required: false },
   createdAt: { type: Date, default: Date.now },
   modifiedDate: { type: Date },
 });
