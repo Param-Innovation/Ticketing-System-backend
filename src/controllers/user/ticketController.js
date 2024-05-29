@@ -7,18 +7,196 @@ import moment from "moment-timezone";
 import Pricing from "../../models/pricingModel.js";
 import CanceledTicket from "../../models/canceledTicketModel.js";
 
-async function calculateTotalAmount(ticketTypes, bookingDate) {
+// async function calculateTotalAmount(ticketTypes, bookingDate) {
+//   const pricing = await Pricing.findOne().sort({ lastUpdated: -1 }).limit(1); // Assuming the latest pricing is what we want
+//   const isWeekend = [0, 6].includes(new Date(bookingDate).getDay()); // 0 = Sunday, 6 = Saturday
+
+//   return ticketTypes.reduce((total, ticketType) => {
+//     const priceDetail = pricing.prices.find((p) => p.type === ticketType.type);
+//     const price = isWeekend
+//       ? priceDetail.weekEndPrice
+//       : priceDetail.weekDayPrice;
+//     return total + ticketType.numberOfTickets * price;
+//   }, 0);
+// }
+
+async function calculateTotalAmount(
+  ticketTypes,
+  bookingDate,
+  specialEventId = null
+) {
   const pricing = await Pricing.findOne().sort({ lastUpdated: -1 }).limit(1); // Assuming the latest pricing is what we want
   const isWeekend = [0, 6].includes(new Date(bookingDate).getDay()); // 0 = Sunday, 6 = Saturday
 
-  return ticketTypes.reduce((total, ticketType) => {
+  let totalAmount = ticketTypes.reduce((total, ticketType) => {
     const priceDetail = pricing.prices.find((p) => p.type === ticketType.type);
     const price = isWeekend
       ? priceDetail.weekEndPrice
       : priceDetail.weekDayPrice;
     return total + ticketType.numberOfTickets * price;
   }, 0);
+
+  // Add special event price if applicable
+  if (specialEventId) {
+    const event = await Event.findById(specialEventId);
+    if (event) {
+      const isEventWeekend = [0, 6].includes(
+        new Date(event.startDate).getDay()
+      );
+      const eventPrices = event.prices;
+      totalAmount += eventPrices.reduce((total, ticketType) => {
+        const price = isEventWeekend
+          ? ticketType.weekEndPrice
+          : ticketType.weekDayPrice;
+        return total + price;
+      }, 0);
+    }
+  }
+
+  return totalAmount;
 }
+
+async function checkSameDayEvent(bookingDate, specialEventId) {
+  const event = await Event.findById(specialEventId);
+  if (!event) {
+    return false;
+  }
+  const eventStartDate = moment(event.startDate).startOf("day");
+  const bookingMoment = moment(bookingDate).startOf("day");
+  return eventStartDate.isSame(bookingMoment);
+}
+
+// CALCULATE TOTAL AMOUNT FOR THE TICKET
+export const calculateTotal = async (req, res) => {
+  const { bookingDate, ticketTypes, specialEventId, couponCode } = req.body;
+  const token = req.headers.authorization?.split(" ")[1];
+  const { name, email, phoneNumber } = req.body;
+
+  try {
+    const now = moment().tz("Asia/Kolkata");
+    const bookingMoment = moment.tz(bookingDate, "Asia/Kolkata");
+
+    if (bookingMoment.isBefore(now, "day")) {
+      return res
+        .status(400)
+        .json({ message: "Cannot book tickets for past dates" });
+    }
+
+    let userEntry, userType;
+    let couponValidForUser = false;
+
+    if (token) {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      userEntry = await User.findById(decoded.userId);
+      userType = "Registered";
+      if (!userEntry) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      couponValidForUser = true;
+    } else if (name && email && phoneNumber) {
+      userEntry = await GuestUser.findOne({ email: email });
+      userType = "Guest";
+      if (!userEntry) {
+        userEntry = new GuestUser({ name, email, phoneNumber });
+        await userEntry.save();
+      }
+      couponValidForUser = true;
+    }
+
+    let totalAmount = await calculateTotalAmount(
+      ticketTypes,
+      bookingDate,
+      specialEventId
+    );
+
+    // Apply coupon if provided
+    let appliedCoupon;
+    if (couponCode) {
+      appliedCoupon = await Coupon.findOne({ code: couponCode }).populate(
+        "applicableEventIds"
+      );
+      if (!appliedCoupon) {
+        return res.status(400).json({ message: "Invalid coupon code" });
+      }
+
+      const currentDate = new Date();
+      if (
+        currentDate < appliedCoupon.validFrom ||
+        currentDate > appliedCoupon.validTo
+      ) {
+        return res
+          .status(400)
+          .json({ message: "Coupon is not valid for the current date" });
+      }
+
+      if (
+        appliedCoupon.applicableUserTypes.length > 0 &&
+        !appliedCoupon.applicableUserTypes.includes(userType)
+      ) {
+        return res
+          .status(400)
+          .json({ message: "Coupon is not applicable for this user type" });
+      }
+
+      if (
+        appliedCoupon.applicableEventIds.length > 0 &&
+        specialEventId &&
+        !appliedCoupon.applicableEventIds.some(
+          (event) => event._id.toString() === specialEventId
+        )
+      ) {
+        return res
+          .status(400)
+          .json({ message: "Coupon is not applicable for this event" });
+      }
+
+      if (totalAmount < appliedCoupon.minBookingAmount) {
+        return res.status(400).json({
+          message:
+            "Booking amount is less than the minimum required for this coupon",
+        });
+      }
+
+      if (couponValidForUser) {
+        const userId = userEntry._id;
+
+        const userCouponUsage = await Ticket.countDocuments({
+          $or: [{ userId }, { guestUserId: userId }],
+          couponCode: couponCode,
+        });
+
+        if (userCouponUsage >= appliedCoupon.usageLimit) {
+          return res
+            .status(400)
+            .json({ message: "Coupon usage limit exceeded for this user" });
+        }
+      }
+
+      const isSameDayEvent = specialEventId
+        ? await checkSameDayEvent(bookingDate, specialEventId)
+        : true;
+      if (!isSameDayEvent) {
+        return res.status(400).json({
+          message:
+            "Coupon is not applicable as the event and slot are not on the same day",
+        });
+      }
+
+      let discountAmount = 0;
+      if (appliedCoupon.discountType === "percentage") {
+        discountAmount = (totalAmount * appliedCoupon.discountValue) / 100;
+      } else {
+        discountAmount = appliedCoupon.discountValue;
+      }
+
+      totalAmount -= discountAmount;
+    }
+
+    res.status(200).json({ totalAmount, appliedCoupon });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
 
 // BOOK TICKETS FOR REGISTERD OR GUEST USER
 export const bookTickets = async (req, res) => {

@@ -2,7 +2,7 @@ import User from "../../models/userModel.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import AWS from "aws-sdk";
+// import AWS from "aws-sdk";
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import OTP from "../../models/otpModel.js";
 import GuestUser from "../../models/guestUserModel.js";
@@ -57,7 +57,6 @@ function generateToken(user) {
 // SignIn function...
 // @Body params:
 // email, password
-
 export const signIn = async (req, res) => {
   const { email, password } = req.body;
 
@@ -94,7 +93,6 @@ export const signIn = async (req, res) => {
 // SignUp function...
 // @Body Params:
 // usernmae, email, password, phone_number
-
 export const signUp = async (req, res) => {
   const { username, email, password, phone_number } = req.body;
   // console.log(req.body)
@@ -152,7 +150,6 @@ export const signUp = async (req, res) => {
 // SendOTP function...
 // @Body Params:
 // phoneNumber
-
 export const sendOTP = async (req, res) => {
   const { phoneNumber } = req.body;
   const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -200,7 +197,6 @@ export const sendOTP = async (req, res) => {
 // Verify guestUser function...
 // @Body Params:
 // phoneNumber, otp
-
 export const verifyGuestUser = async (req, res) => {
   const { phoneNumber, otp } = req.body;
   const result = await verifyOtp(phoneNumber, otp);
