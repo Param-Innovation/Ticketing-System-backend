@@ -27,4 +27,7 @@ app.use('/api/slots', slotRoutes);
 // Mount ticket routes at /api/tickets
 app.use('/api/tickets', ticketRoutes);
 
+// Mount payment routes at /api/razorpay
+app.use('/api/razorpay', ticketRoutes);
+
 export default app;
