@@ -1,5 +1,15 @@
 import Event from "../../models/eventModel.js";
 
+// List all events
+export const listEvents = async (req, res) => {
+  try {
+    const events = await Event.find();
+    res.status(200).json(events);
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 // Add a new event
 // @Body Params
 // {
@@ -14,7 +24,7 @@ import Event from "../../models/eventModel.js";
 //       { "type": "student", "weekDayPrice": 7, "weekEndPrice": 8 },
 //       { "type": "senior", "weekDayPrice": 8, "weekEndPrice": 10 }
 //     ]
-//   } 
+//   }
 export const addEvent = async (req, res) => {
   const { name, description, startDate, endDate, location, prices } = req.body;
 
@@ -44,10 +54,10 @@ export const addEvent = async (req, res) => {
 // @Params
 // id
 // @Body Params
-// Ex: 
+// Ex:
 // {
 //     "description": "A revised description of the science exhibition."
-// } 
+// }
 export const editEvent = async (req, res) => {
   const { id } = req.params;
   const { name, description, startDate, endDate, location, prices } = req.body;

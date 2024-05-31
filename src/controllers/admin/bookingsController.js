@@ -1,3 +1,4 @@
+import CanceledTicket from "../../models/canceledTicketModel.js";
 import Pricing from "../../models/pricingModel.js";
 import Slot from "../../models/slotModel.js";
 import Ticket from "../../models/ticketModel.js";
@@ -70,7 +71,7 @@ export const editBooking = async (req, res) => {
 
 export const cancelBookings = async (req, res) => {
   let { ticketIds } = req.body;
-
+  
   //Ensure if ticketIds is an array
   if (!Array.isArray(ticketIds)) {
     ticketIds = [ticketIds];
@@ -115,7 +116,7 @@ export const cancelBookings = async (req, res) => {
       await canceledTicket.save();
 
       // Remove the ticket
-      await Ticket.findByIdAndRemove(ticket._id);
+      await Ticket.findByIdAndDelete(ticket._id);
     }
     // Apply slot updates in bulk
     for (const [date, slots] of Object.entries(slotUpdates)) {

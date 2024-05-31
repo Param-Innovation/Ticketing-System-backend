@@ -4,7 +4,7 @@ import { adminLogin } from '../../controllers/admin/adminController.js'; // crea
 import { authenticateToken } from '../../middleware/authenticate.js';
 import { getUserByType } from '../../controllers/admin/userListController.js';
 import { cancelBookings, editBooking, getAllBookings } from '../../controllers/admin/bookingsController.js';
-import { addEvent, editEvent, removeEvent } from '../../controllers/admin/eventController.js';
+import { addEvent, editEvent, listEvents, removeEvent } from '../../controllers/admin/eventController.js';
 import { addCoupon, editCoupon, removeCoupon } from '../../controllers/admin/couponController.js';
 import { ReturnDocument } from 'mongodb';
 
@@ -19,10 +19,12 @@ router.post('/set-price', authenticateToken, setPrice);
 router.get('/users', authenticateToken, getUserByType);
 // Endpoint for listing the Booking(s) / Ticket(s)
 router.get('/bookings', authenticateToken, getAllBookings);
-// Endpoint for Editing a particular Booking / Ticket
-router.put('/bookings/:id', authenticateToken, editBooking);
 // Endpoint for cancelling Booking(s) / Ticket(s)
 router.put('/bookings/cancel', authenticateToken, cancelBookings);
+// Endpoint for Editing a particular Booking / Ticket
+router.put('/bookings/:id', authenticateToken, editBooking);
+// Endpoint to get all events
+router.get('/events', authenticateToken, listEvents);
 // Endpoint to Add a new event
 router.post('/events', authenticateToken, addEvent);
 // Endpoint to Edit an existing event
