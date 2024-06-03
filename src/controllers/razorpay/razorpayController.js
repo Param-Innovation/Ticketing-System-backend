@@ -1,15 +1,18 @@
 import Razorpay from "razorpay";
 import dotenv from "dotenv";
-import crypto from "crypto";
+import jwt from "jsonwebtoken";
+// import crypto from "crypto";
 // import Ticket from "../../models/ticketModel.js"; // Adjust the path to your Ticket model
 import User from "../../models/userModel.js";
 import GuestUser from "../../models/guestUserModel.js";
 
 dotenv.config();
 
+// console.log(process.env.RZP_KEY_ID)
+
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
+  key_id: process.env.RZP_KEY_ID,
+  key_secret: process.env.RZP_KEY_SECRET,
 });
 
 //@Body Params

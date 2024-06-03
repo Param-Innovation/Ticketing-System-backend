@@ -3,8 +3,9 @@ import cors from 'cors';
 import connectDB from './Database/connectDB.js';
 import userRoutes from './routes/user/userRoutes.js';
 import slotRoutes from './routes/user/slotRoutes.js';
-import ticketRoutes from './routes/user/ticketRoutes.js'
-import adminRoutes from './routes/admin/adminRoutesUrls.js'
+import ticketRoutes from './routes/user/ticketRoutes.js';
+import adminRoutes from './routes/admin/adminRoutesUrls.js';
+import razorpayRoutes from './routes/razorpay/razorpayRoutes.js';
 
 const app = express();
 
@@ -38,6 +39,6 @@ app.use('/api/slots', slotRoutes);
 app.use('/api/tickets', ticketRoutes);
 
 // Mount payment routes at /api/razorpay
-app.use('/api/razorpay', ticketRoutes);
+app.use('/api/razorpay', razorpayRoutes);
 
 export default app;

@@ -5,7 +5,7 @@ import { authenticateToken } from '../../middleware/authenticate.js';
 import { getUserByType } from '../../controllers/admin/userListController.js';
 import { cancelBookings, editBooking, getAllBookings } from '../../controllers/admin/bookingsController.js';
 import { addEvent, editEvent, listEvents, removeEvent } from '../../controllers/admin/eventController.js';
-import { addCoupon, editCoupon, removeCoupon } from '../../controllers/admin/couponController.js';
+import { addCoupon, editCoupon, listCoupons, removeCoupon } from '../../controllers/admin/couponController.js';
 import { ReturnDocument } from 'mongodb';
 
 const router = express.Router();
@@ -31,12 +31,14 @@ router.post('/events', authenticateToken, addEvent);
 router.put('/events/:id', authenticateToken, editEvent);
 // Endpoint to Remove an event
 router.delete('/events/:id', authenticateToken, removeEvent);
+// List all coupons
+router.get('/coupon', authenticateToken, listCoupons);
+// List a particular coupon
+router.get('/coupon/:couponId', authenticateToken, listCoupons);
 // Add a new coupon
 router.post('/coupon', authenticateToken, addCoupon);
 // Edit a new coupon
 router.put('/coupon/:couponId', authenticateToken, editCoupon);
-// Edit a new coupon
-router.delete('/coupon/:couponId', authenticateToken, editCoupon);
 // Delete a new coupon
 router.delete('/coupon/:couponId', authenticateToken, removeCoupon);
 

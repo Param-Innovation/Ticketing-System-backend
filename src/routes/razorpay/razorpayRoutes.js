@@ -1,5 +1,5 @@
 import express from "express";
-import { createOrder } from "../controllers/razorpayController.js"; // Adjust the path as necessary
+import { createOrder } from "../../controllers/razorpay/razorpayController.js"; // Adjust the path as necessary
 
 const router = express.Router();
 

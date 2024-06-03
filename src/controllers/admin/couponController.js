@@ -1,5 +1,27 @@
 import Coupon from "../../models/couponModel.js";
 
+// List all events
+export const listCoupons = async (req, res) => {
+  const { couponId } = req.params;
+  try {
+    if (couponId) {
+      const coupon = await Coupon.findById(couponId);
+      console.log(coupon)
+      if (!coupon) {
+        return res.status(404).json({ message: "Coupon not found" });
+      }
+      return res.status(200).json(coupon);
+    } else {
+      const coupons = await Coupon.find();
+      return res.status(200).json(coupons);
+    }
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
+  }
+};
+
 // Add a new coupon
 // @Body params
 // {
@@ -70,6 +92,7 @@ export const editCoupon = async (req, res) => {
 
   try {
     const coupon = await Coupon.findById(couponId);
+    console.log("==========", coupon);
     if (!coupon) {
       return res.status(404).json({ message: "Coupon not found" });
     }
@@ -101,7 +124,7 @@ export const editCoupon = async (req, res) => {
 // couponId
 export const removeCoupon = async (req, res) => {
   const { couponId } = req.params;
-//   console.log(couponId)
+  //   console.log(couponId)
 
   try {
     const coupon = await Coupon.findByIdAndDelete(couponId);
