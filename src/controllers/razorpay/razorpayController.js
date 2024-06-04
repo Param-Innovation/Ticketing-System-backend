@@ -77,7 +77,7 @@ export const createOrder = async (req, res) => {
     }
 
     const options = {
-      amount: amount * 100, // Amount in paise
+      amount: amount, // Amount in paise
       currency: currency || "INR",
       receipt: "TXN" + Date.now(),
       payment_capture: 1, // Auto capture

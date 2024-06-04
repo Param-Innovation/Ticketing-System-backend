@@ -7,7 +7,7 @@ export const getOrCreateSlots = async (req, res) => {
   if (!dateInput) {
     return res.status(400).json({ message: "No date provided" });
   }
-
+  console.log(dateInput);
   // Parse the date in the IST timezone
   const requestedDate = moment.tz(dateInput, "Asia/Kolkata");
   const today = moment().tz("Asia/Kolkata").startOf("day");
