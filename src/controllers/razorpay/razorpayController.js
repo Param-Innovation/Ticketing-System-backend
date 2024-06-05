@@ -1,10 +1,9 @@
 import Razorpay from "razorpay";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
-// import crypto from "crypto";
-// import Ticket from "../../models/ticketModel.js"; // Adjust the path to your Ticket model
 import User from "../../models/userModel.js";
 import GuestUser from "../../models/guestUserModel.js";
+import Payment from "../../models/paymentModel.js";
 
 dotenv.config();
 
@@ -47,30 +46,20 @@ export const createOrder = async (req, res) => {
   const token = req.headers.authorization?.split(" ")[1]; // Assumes "Bearer <token>"
 
   try {
-    let userId;
+    let userEntry;
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      userId = decoded.userId;
-    } else if (email || phoneNumber) {
-      let user;
-      if (email) {
-        user = await User.findOne({ email });
-      } else if (phoneNumber) {
-        user = await User.findOne({ phone_number: phoneNumber });
+      userEntry = await User.findById(decoded.userId);
+      if (!userEntry) {
+        return res.status(404).json({ message: "User not found" });
       }
-
-      if (user) {
-        userId = user._id;
-      } else {
-        // Handle guest user case
-        let guestUser =
-          (await GuestUser.findOne({ email })) ||
-          (await GuestUser.findOne({ phoneNumber }));
-        if (!guestUser) {
-          guestUser = new GuestUser({ email, phoneNumber });
-          await guestUser.save();
-        }
-        userId = guestUser._id;
+    } else if (email || phoneNumber) {
+      userEntry =
+        (await GuestUser.findOne({ email })) ||
+        (await GuestUser.findOne({ phone_number: phoneNumber }));
+      if (!userEntry) {
+        userEntry = new GuestUser({ name: req.body.name, email, phoneNumber });
+        await userEntry.save();
       }
     } else {
       return res.status(400).json({ message: "Insufficient data provided" });
@@ -85,17 +74,16 @@ export const createOrder = async (req, res) => {
 
     const order = await razorpay.orders.create(options);
 
-    // Save the order details in your database if necessary
-    // const newOrder = new Order({
-    //   userId,
-    //   orderId: order.id,
-    //   amount: amount,
-    //   currency: currency || "INR",
-    //   receipt,
-    //   status: "created",
-    //   // Other details as necessary
-    // });
-    // await newOrder.save();
+    // Save the order details in your database
+    const newPayment = new Payment({
+      userId: userEntry._id,
+      orderId: order.id,
+      amount: amount,
+      currency: currency || "INR",
+      status: "initiated",
+      receipt: order.receipt,
+    });
+    await newPayment.save();
 
     res.status(201).json({
       success: true,
@@ -111,5 +99,19 @@ export const createOrder = async (req, res) => {
       message: "Server error",
       error: error.message,
     });
+  }
+};
+
+export const initiateRefund = async (paymentId, amount, receipt) => {
+  try {
+    const refund = await razorpay.payments.refund(paymentId, {
+      amount: amount * 100, // Amount in smallest currency unit (paise)
+      receipt: receipt,
+    });
+
+    return refund;
+  } catch (error) {
+    console.error("Error initiating refund:", error);
+    throw new Error("Failed to initiate refund. Please try again later.");
   }
 };

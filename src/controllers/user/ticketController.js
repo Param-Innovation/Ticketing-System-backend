@@ -6,6 +6,9 @@ import jwt from "jsonwebtoken";
 import moment from "moment-timezone";
 import Pricing from "../../models/pricingModel.js";
 import CanceledTicket from "../../models/canceledTicketModel.js";
+import crypto from "crypto";
+import Payment from "../../models/paymentModel.js";
+import { initiateRefund } from "../razorpay/razorpayController.js";
 
 // async function calculateTotalAmount(ticketTypes, bookingDate) {
 //   const pricing = await Pricing.findOne().sort({ lastUpdated: -1 }).limit(1); // Assuming the latest pricing is what we want
@@ -200,8 +203,17 @@ export const calculateTotal = async (req, res) => {
 
 // BOOK TICKETS FOR REGISTERD OR GUEST USER
 export const bookTickets = async (req, res) => {
-  const { bookingDate, slotIndex, ticketTypes, name, email, phoneNumber } =
-    req.body;
+  const {
+    bookingDate,
+    slotIndex,
+    ticketTypes,
+    name,
+    email,
+    phoneNumber,
+    paymentId,
+    orderId,
+    signature,
+  } = req.body;
   const token = req.headers.authorization?.split(" ")[1]; // Assumes "Bearer <token>"
 
   try {
@@ -214,6 +226,34 @@ export const bookTickets = async (req, res) => {
         .status(400)
         .json({ message: "Cannot book tickets for past dates" });
     }
+
+    console.log(
+      "payemntId :",
+      paymentId,
+      ", orderId :",
+      orderId,
+      ", signature :",
+      signature
+    );
+
+    // Verify payment signature
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RZP_KEY_SECRET)
+      .update(orderId + "|" + paymentId)
+      .digest("hex");
+    console.log("expectedSignature :", expectedSignature);
+
+    if (signature !== expectedSignature) {
+      return res.status(400).json({ message: "Payment verification failed" });
+    }
+
+    // Confirm payment and book the ticket
+    const payment = await Payment.findOne({ orderId });
+    if (!payment) {
+      return res.status(404).json({ message: "Payment not found" });
+    }
+    payment.paymentId = paymentId;
+    payment.status = "paid"; // Update status to 'paid' or 'verified'
 
     // Identify if it's a registered or guest user
     let userEntry, userType;
@@ -286,6 +326,10 @@ export const bookTickets = async (req, res) => {
     const newTicket = new Ticket(ticketData);
     await newTicket.save();
 
+    // Update payment with the ticketId
+    payment.ticketId = newTicket._id;
+    await payment.save();
+
     res.status(201).json({
       message: "Ticket booked successfully",
       ticketDetails: newTicket,
@@ -357,14 +401,18 @@ export const cancelTickets = async (req, res) => {
     if (!token) {
       return res
         .status(401)
-        .json({ message: "No authentication token provided" });
+        .json({ success: false, message: "No authentication token provided" });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const ticket = await Ticket.findById(ticketId);
     if (!ticket) {
-      return res.status(404).json({ message: "Ticket not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Ticket not found" });
     }
+
+    console.log(ticket);
 
     // Check if the user is authorized to cancel this ticket
     if (
@@ -373,7 +421,10 @@ export const cancelTickets = async (req, res) => {
     ) {
       return res
         .status(403)
-        .json({ message: "You are not authorized to cancel this ticket" });
+        .json({
+          success: false,
+          message: "You are not authorized to cancel this ticket",
+        });
     }
 
     // Convert booking date from IST to UTC
@@ -381,6 +432,48 @@ export const cancelTickets = async (req, res) => {
       .tz("Asia/Kolkata")
       .startOf("day")
       .utc();
+
+    // Check if the booking date is at least 24 hours away
+    const currentDateTimeUTC = moment.utc();
+    if (bookingDateUTC.diff(currentDateTimeUTC, "hours") < 24) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Tickets can only be cancelled at least 24 hours before the booking date",
+      });
+    }
+
+    // Fetch the payment data using the ticketId
+    const payment = await Payment.findOne({ ticketId: ticket._id });
+    if (!payment) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Payment not found for this ticket" });
+    }
+
+    const paymentId = payment.paymentId;
+    if (!paymentId) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Payment ID not found in payment data",
+        });
+    }
+
+    // Proceed to initiate a refund using Razorpay
+    const refund = await initiateRefund(
+      paymentId,
+      ticket.totalAmount,
+      `refund_${ticket._id}`
+    );
+
+    if (!refund) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to initiate refund. Please try again later.",
+      });
+    }
 
     // Find the corresponding slot document by date
     const slotDocument = await Slot.findOne({
@@ -391,9 +484,10 @@ export const cancelTickets = async (req, res) => {
     });
 
     if (!slotDocument) {
-      return res
-        .status(404)
-        .json({ message: "No slot found for this booking date" });
+      return res.status(404).json({
+        success: false,
+        message: "No slot found for this booking date",
+      });
     }
 
     // Find the specific slot using the timeSlot from the ticket
@@ -403,7 +497,7 @@ export const cancelTickets = async (req, res) => {
     if (!slotToUpdate) {
       return res
         .status(404)
-        .json({ message: "No corresponding slot time found" });
+        .json({ success: false, message: "No corresponding slot time found" });
     }
 
     // Update the number of available tickets
@@ -428,12 +522,17 @@ export const cancelTickets = async (req, res) => {
 
     // Proceed to delete the ticket
     await Ticket.findByIdAndDelete(ticketId);
-    res.json({ message: "Ticket cancelled successfully, and slot updated" });
+    res.json({
+      success: true,
+      message: "Ticket cancelled successfully, and slot updated",
+    });
   } catch (error) {
     console.error("Error cancelling ticket:", error);
     if (error.name === "JsonWebTokenError") {
       return res.status(401).json({ message: "Invalid token" });
     }
-    res.status(500).json({ message: "Server error", error: error.message });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error", error: error.message });
   }
 };
