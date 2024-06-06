@@ -36,7 +36,7 @@ const verifyOtp = async (phoneNumber, otp) => {
 };
 
 const sns = new SNSClient({
-  region: process.env.AWS_SNS_REGION,
+  region: process.env.AWS_SNS_REGION, 
   credentials: {
     accessKeyId: process.env.AWS_SNS_ACCESS_KEY,
     secretAccessKey: process.env.AWS_SNS_SECRET_ACCESS_KEY,

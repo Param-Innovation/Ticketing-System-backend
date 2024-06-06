@@ -58,7 +58,9 @@ export const createOrder = async (req, res) => {
         (await GuestUser.findOne({ email })) ||
         (await GuestUser.findOne({ phone_number: phoneNumber }));
       if (!userEntry) {
-        userEntry = new GuestUser({ name: req.body.name, email, phoneNumber });
+        const atIndex = email.indexOf("@");
+        const name = email.slice(0, atIndex);
+        userEntry = new GuestUser({ name: name, email, phoneNumber });
         await userEntry.save();
       }
     } else {
@@ -106,9 +108,10 @@ export const initiateRefund = async (paymentId, amount, receipt) => {
   try {
     const refund = await razorpay.payments.refund(paymentId, {
       amount: amount * 100, // Amount in smallest currency unit (paise)
+      speed: "optimum",
       receipt: receipt,
     });
-
+    console.log(refund)
     return refund;
   } catch (error) {
     console.error("Error initiating refund:", error);

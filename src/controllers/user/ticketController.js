@@ -73,7 +73,7 @@ async function checkSameDayEvent(bookingDate, specialEventId) {
 export const calculateTotal = async (req, res) => {
   const { bookingDate, ticketTypes, specialEventId, couponCode } = req.body;
   const token = req.headers.authorization?.split(" ")[1];
-  const { name, email, phoneNumber } = req.body;
+  const { email, phoneNumber } = req.body;
 
   try {
     const now = moment().tz("Asia/Kolkata");
@@ -96,10 +96,13 @@ export const calculateTotal = async (req, res) => {
         return res.status(404).json({ message: "User not found" });
       }
       couponValidForUser = true;
-    } else if (name && email && phoneNumber) {
+    } else if (email && phoneNumber) {
       userEntry = await GuestUser.findOne({ email: email });
       userType = "Guest";
       if (!userEntry) {
+        const atIndex = email.indexOf("@");
+        const name = email.slice(0, atIndex);
+        console.log(name);
         userEntry = new GuestUser({ name, email, phoneNumber });
         await userEntry.save();
       }
@@ -207,7 +210,6 @@ export const bookTickets = async (req, res) => {
     bookingDate,
     slotIndex,
     ticketTypes,
-    name,
     email,
     phoneNumber,
     paymentId,
@@ -264,11 +266,13 @@ export const bookTickets = async (req, res) => {
       if (!userEntry) {
         return res.status(404).json({ message: "User not found" });
       }
-    } else if (name && email && phoneNumber) {
+    } else if (email && phoneNumber) {
       // Check for an existing guest user
       userEntry = await GuestUser.findOne({ email: email });
       if (!userEntry) {
         // If no guest user exists, create a new one
+        const atIndex = email.indexOf("@");
+        const name = email.slice(0, atIndex);
         userEntry = new GuestUser({ name, email, phoneNumber });
         await userEntry.save();
       }
@@ -301,7 +305,9 @@ export const bookTickets = async (req, res) => {
       selectedSlot.ticketsAvailable <
       ticketTypes.reduce((sum, type) => sum + type.numberOfTickets, 0)
     ) {
-      return res.status(400).json({ message: "Not enough tickets available" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Not enough tickets available" });
     }
 
     // Decrement tickets available
@@ -331,13 +337,14 @@ export const bookTickets = async (req, res) => {
     await payment.save();
 
     res.status(201).json({
+      success: true,
       message: "Ticket booked successfully",
       ticketDetails: newTicket,
       user: userEntry,
     });
   } catch (error) {
     if (error.name === "JsonWebTokenError") {
-      return res.status(401).json({ message: "Invalid token" });
+      return res.status(401).json({ success: false, message: "Invalid token" });
     }
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -419,12 +426,10 @@ export const cancelTickets = async (req, res) => {
       (ticket.userId && ticket.userId.toString() !== decoded.userId) ||
       (ticket.guestUserId && ticket.guestUserId.toString() !== decoded.userId)
     ) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "You are not authorized to cancel this ticket",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to cancel this ticket",
+      });
     }
 
     // Convert booking date from IST to UTC
@@ -453,12 +458,10 @@ export const cancelTickets = async (req, res) => {
 
     const paymentId = payment.paymentId;
     if (!paymentId) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Payment ID not found in payment data",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Payment ID not found in payment data",
+      });
     }
 
     // Proceed to initiate a refund using Razorpay
@@ -525,6 +528,7 @@ export const cancelTickets = async (req, res) => {
     res.json({
       success: true,
       message: "Ticket cancelled successfully, and slot updated",
+      refund: refund,
     });
   } catch (error) {
     console.error("Error cancelling ticket:", error);
