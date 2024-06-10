@@ -1,9 +1,26 @@
 import mongoose from "mongoose";
-// import bcrypt from "bcrypt";
+
 const otpSchema = new mongoose.Schema({
-  phoneNumber: { type: String, required: true, unique: true },
-  code: { type: String, required: true },
-  expires: { type: Date, required: true, index: { expires: 10 } }, // Expires after 180 seconds (3 minutes)
+  contactMethod: {
+    type: String,
+    required: true,
+    enum: ["email", "phoneNumber"], // Defines the method of OTP delivery
+  },
+  contactValue: {
+    type: String,
+    required: true,
+    unique: true, // Ensures that each email or phone number is unique in the collection
+    index: true, // Improves the performance of query operations that specify this field
+  },
+  code: {
+    type: String,
+    required: true,
+  },
+  expires: {
+    type: Date,
+    required: true,
+    index: { expires: "3m" }, // Automatically delete documents after 3 minutes
+  },
 });
 
 const OTP = mongoose.model("OTP", otpSchema);

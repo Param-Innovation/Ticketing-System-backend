@@ -353,7 +353,7 @@ export const bookTickets = async (req, res) => {
 // FETCH BOOKINGS FOR REGISTERD OR GUEST USER
 export const getTickets = async (req, res) => {
   const token = req.headers.authorization?.split(" ")[1];
-  const email = req.body.email; // Received from x-www-form-urlencoded
+  const guestUserId = req.params.userId; // Received from x-www-form-urlencoded
 
   try {
     if (token) {
@@ -372,14 +372,14 @@ export const getTickets = async (req, res) => {
           .json({ message: "No tickets found for this user" });
       }
       return res.status(200).json(tickets);
-    } else if (email) {
+    } else if (guestUserId) {
       // Handle guest user
-      const guestUser = await GuestUser.findOne({ email });
+      const guestUser = await GuestUser.findById(guestUserId);
       if (!guestUser) {
         return res.status(404).json({ message: "Guest user not found" });
       }
 
-      const tickets = await Ticket.find({ guestUserId: guestUser._id });
+      const tickets = await Ticket.find({ guestUserId: guestUserId });
       if (tickets.length === 0) {
         return res
           .status(404)
@@ -401,17 +401,28 @@ export const getTickets = async (req, res) => {
 
 // CANCEL BOOKINGS FOR REGISTERED OR GUEST USER
 export const cancelTickets = async (req, res) => {
-  const { ticketId } = req.body;
+  const { ticketId, userId } = req.body;
   const token = req.headers.authorization?.split(" ")[1];
 
   try {
-    if (!token) {
+    let decodedUserId = null;
+    if(token ){
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decodedUserId = decoded.userId;
+    } else if (userId) {
+      const user = GuestUser.findById(userId);
+      if(user){
+        decodedUserId = userId
+      } else {
+        return res
+        .status(404)
+        .json({ success: false, message: "User Not Found" });
+      }
+    } else {
       return res
         .status(401)
-        .json({ success: false, message: "No authentication token provided" });
+        .json({ success: false, message: "No authentication data provided" });
     }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const ticket = await Ticket.findById(ticketId);
     if (!ticket) {
       return res
@@ -423,8 +434,8 @@ export const cancelTickets = async (req, res) => {
 
     // Check if the user is authorized to cancel this ticket
     if (
-      (ticket.userId && ticket.userId.toString() !== decoded.userId) ||
-      (ticket.guestUserId && ticket.guestUserId.toString() !== decoded.userId)
+      (ticket.userId && ticket.userId.toString() !== decodedUserId) ||
+      (ticket.guestUserId && ticket.guestUserId.toString() !== decodedUserId)
     ) {
       return res.status(403).json({
         success: false,

@@ -4,7 +4,7 @@ import { bookTickets, calculateTotal, cancelTickets, getTickets } from '../../co
 
 router.post('/calculate-total' , calculateTotal);
 router.post('/book-tickets' , bookTickets);
-router.get('/bookings', getTickets);
+router.get('/bookings/:userId', getTickets);
 router.delete('/cancel', cancelTickets);
 
 export default router;

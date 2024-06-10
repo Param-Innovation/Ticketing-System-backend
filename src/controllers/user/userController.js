@@ -19,7 +19,7 @@ dotenv.config();
 
 const verifyOtp = async (phoneNumber, otp) => {
   try {
-    console.log(phoneNumber)
+    console.log(phoneNumber);
     const otpRecord = await OTP.findOne({ phoneNumber });
     if (!otpRecord) {
       return { success: false, message: "No OTP found for this phone number." };
@@ -35,7 +35,7 @@ const verifyOtp = async (phoneNumber, otp) => {
     console.error("Error verifying OTP:", error);
     return { success: false, message: "Server error", error: error.message };
   }
-}; 
+};
 
 const sns = new SNSClient({
   region: process.env.AWS_SNS_REGION,
@@ -162,6 +162,15 @@ export const signUp = async (req, res) => {
 // phoneNumber
 export const sendOTP = async (req, res) => {
   const { phoneNumber, email } = req.body;
+  console.log(phoneNumber, email);
+
+  // Before calling findOneAndUpdate, ensure the identifier is not null
+  if (!phoneNumber || !email) {
+    return res.status(400).json({
+      success: false,
+      message: "Both phoneNumber and email are required",
+    });
+  }
 
   const otpCodeForPhoneNumber = Math.floor(
     100000 + Math.random() * 900000
@@ -170,22 +179,19 @@ export const sendOTP = async (req, res) => {
     new Date().getTime() + 3 * 60 * 1000
   ); // 3 minutes from now
 
-  // const otpCodeForEmail = Math.floor(
-  //   100000 + Math.random() * 900000
-  // ).toString();
-  // const expiryDateForEmail = new Date(new Date().getTime() + 3 * 60 * 1000); // 3 minutes from now
+  const otpCodeForEmail = Math.floor(
+    100000 + Math.random() * 900000
+  ).toString();
+  const expiryDateForEmail = new Date(new Date().getTime() + 3 * 60 * 1000); // 3 minutes from now
 
   try {
     // Encrypt the OTP code
     const saltRounds = 10;
-    const hashedOtpCodeForPhoneNumber = await bcrypt.hash(
-      otpCodeForPhoneNumber,
-      saltRounds
-    );
-    // const hashedOtpCodeForEmail = await bcrypt.hash(
-    //   otpCodeForEmail,
-    //   saltRounds
-    // );
+    const [hashedOtpCodeForPhoneNumber, hashedOtpCodeForEmail] =
+      await Promise.all([
+        bcrypt.hash(otpCodeForPhoneNumber, saltRounds),
+        bcrypt.hash(otpCodeForEmail, saltRounds),
+      ]);
 
     // Sending OTP via AWS SNS
     const params = {
@@ -200,28 +206,57 @@ export const sendOTP = async (req, res) => {
     };
 
     const command = new PublishCommand(params);
-    const publishTextPromise = await sns.send(command);
-    // const publishTextPromise = sns.send(command);
-    // console.log(publishTextPromise);
+    const publishTextPromise = sns.send(command);
 
     // Prepare to send OTP via Email
-    // const mailOptions = {
-    //   from: process.env.GMAIL_EMAIL_ID,
-    //   to: email,
-    //   subject: "Email Verification",
-    //   html: `<p>Your OTP for Email Verification : ${otpCodeForEmail}</p>`,
-    // };
+    const mailOptions = {
+      from: process.env.GMAIL_EMAIL_ID,
+      to: email,
+      subject: "Email Verification",
+      html: `<p>Your OTP for Email Verification : ${otpCodeForEmail}</p>`,
+    };
 
     // Execute both OTP sendings
-    // const [smsResponse, emailResponse] = await Promise.all([
-    //   publishTextPromise,
-    //   transporter.sendMail(mailOptions)
-    // ]);
+    const [smsResponse, emailResponse] = await Promise.all([
+      publishTextPromise,
+      transporter.sendMail(mailOptions),
+    ]);
+    // const publishTextPromise = await sns.send(command);
+    // console.log(publishTextPromise);
+
+    // transporter.sendMail(mailOptions);
+
+    // Handle SMS and Email responses
+    console.log("smsResponse :",smsResponse, "emailResponse :",emailResponse)
+    const smsSuccess = smsResponse.status === "fulfilled";
+    const emailSuccess = emailResponse.status === "fulfilled";
 
     // Update database with new OTP details for phone and email
+    // Update the OTP for the phone number
     const updatedOtpPhone = await OTP.findOneAndUpdate(
-      { phoneNumber: phoneNumber },
-      { code: hashedOtpCodeForPhoneNumber, expires: expiryDateForPhoneNumber },
+      {
+        contactMethod: "phoneNumber",
+        contactValue: phoneNumber,
+      },
+      {
+        code: hashedOtpCodeForPhoneNumber,
+        expires: expiryDateForPhoneNumber,
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    console.log("----------", updatedOtpPhone)
+
+    // Update the OTP for the email
+    const updatedOtpEmail = await OTP.findOneAndUpdate(
+      {
+        contactMethod: "email",
+        contactValue: email,
+      },
+      {
+        code: hashedOtpCodeForEmail,
+        expires: expiryDateForEmail,
+      },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
@@ -232,21 +267,32 @@ export const sendOTP = async (req, res) => {
     // );
 
     // Send success response
+    // Send success response
     res.status(200).json({
       success: true,
-      message: "OTP sent successfully",
+      message: "OTP sent to phone and email.",
       data: {
-        phoneNumber: phoneNumber,
-        // email: email,
+        sms: {
+          success: smsSuccess,
+          message: smsSuccess
+            ? "OTP sent successfully via SMS."
+            : smsResponse.reason?.message || "Failed to send SMS.",
+        },
+        email: {
+          success: emailSuccess,
+          message: emailSuccess
+            ? "OTP sent successfully via email."
+            : emailResponse.reason?.message || "Failed to send email.",
+        },
         phoneExpires: updatedOtpPhone.expires,
-        // emailExpires: updatedOtpEmail.expires
+        emailExpires: updatedOtpEmail.expires,
       },
     });
   } catch (error) {
     console.error("Error in OTP handling:", error);
     res
       .status(500)
-      .json({ success: false, error: "Server error", details: error.message }); 
+      .json({ success: false, error: "Server error", details: error.message });
   }
 };
 
