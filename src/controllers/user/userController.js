@@ -2,56 +2,42 @@ import User from "../../models/userModel.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-// import AWS from "aws-sdk";
-import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
+import { transporter } from "../../config/config.js";
 import OTP from "../../models/otpModel.js";
 import GuestUser from "../../models/guestUserModel.js";
-import nodemailer from "nodemailer";
 
 dotenv.config();
 
-// const awsConfig = {
-//   accessKeyId: process.env.AWS_SNS_ACCESS_KEY,
-//   secretAccessKey: process.env.AWS_SNS_SECRET_ACCESS_KEY,
-//   region: process.env.AWS_SNS_REGION,
-// };
-// AWS.config.update(awsConfig);
-
-const verifyOtp = async (phoneNumber, otp) => {
+const verifyOtp = async (contactMethod, contactValue, otp) => {
   try {
-    console.log(phoneNumber);
-    const otpRecord = await OTP.findOne({ phoneNumber });
+    const otpRecord = await OTP.findOne({
+      contactMethod: contactMethod,
+      contactValue: contactValue,
+    });
     if (!otpRecord) {
-      return { success: false, message: "No OTP found for this phone number." };
+      return {
+        success: false,
+        message: `No OTP found for this ${contactMethod}.`,
+      };
     }
 
     const isCorrectOtp = await bcrypt.compare(otp, otpRecord.code);
     if (!isCorrectOtp) {
-      return { success: false, message: "Incorrect OTP or OTP has expired." };
+      return {
+        success: false,
+        message: `Incorrect OTP or OTP has expired for ${contactMethod}.`,
+      };
     }
 
-    return { success: true, message: "OTP verified successfully." };
+    return {
+      success: true,
+      message: `OTP verified successfully for ${contactMethod}.`,
+    };
   } catch (error) {
-    console.error("Error verifying OTP:", error);
+    console.error(`Error verifying OTP for ${contactMethod}:`, error);
     return { success: false, message: "Server error", error: error.message };
   }
 };
-
-const sns = new SNSClient({
-  region: process.env.AWS_SNS_REGION,
-  credentials: {
-    accessKeyId: process.env.AWS_SNS_ACCESS_KEY,
-    secretAccessKey: process.env.AWS_SNS_SECRET_ACCESS_KEY,
-  },
-});
-
-const transporter = nodemailer.createTransport({
-  service: "gmail", // Using Gmail for this example
-  auth: {
-    user: process.env.GMAIL_EMAIL_ID,
-    pass: process.env.GMAIL_PASSWORD,
-  },
-});
 
 function generateToken(user) {
   const payload = {
@@ -79,13 +65,16 @@ export const signIn = async (req, res) => {
     // Compare the provided password with the hashed password in the database
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid credentials" });
     }
 
     // Generate JWT token for authentication
     const token = generateToken(user);
 
     res.status(200).json({
+      success: true,
       message: "User signed in successfully",
       user: {
         userId: user._id,
@@ -96,7 +85,9 @@ export const signIn = async (req, res) => {
       token: token,
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error", error: error.message });
   }
 };
 
@@ -112,9 +103,10 @@ export const signUp = async (req, res) => {
     // Check if the user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res
-        .status(400)
-        .json({ message: "User already exists with the provided email" });
+      return res.status(400).json({
+        success: false,
+        message: "User already exists with the provided email",
+      });
     }
 
     // Check for guest user with the same email (and optionally the same phone number)
@@ -147,13 +139,16 @@ export const signUp = async (req, res) => {
     await user.save();
 
     res.status(201).json({
+      success: true,
       message: "User registered successfully",
       userId: user._id,
       username: user.username,
       email: user.email,
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error", error: error.message });
   }
 };
 
@@ -161,93 +156,37 @@ export const signUp = async (req, res) => {
 // @Body Params:
 // phoneNumber
 export const sendOTP = async (req, res) => {
-  const { phoneNumber, email } = req.body;
-  console.log(phoneNumber, email);
+  const { email } = req.body;
 
-  // Before calling findOneAndUpdate, ensure the identifier is not null
-  if (!phoneNumber || !email) {
+  // Validate that email is provided
+  if (!email) {
     return res.status(400).json({
       success: false,
-      message: "Both phoneNumber and email are required",
+      message: "Email is required for OTP.",
     });
   }
-
-  const otpCodeForPhoneNumber = Math.floor(
-    100000 + Math.random() * 900000
-  ).toString();
-  const expiryDateForPhoneNumber = new Date(
-    new Date().getTime() + 3 * 60 * 1000
-  ); // 3 minutes from now
 
   const otpCodeForEmail = Math.floor(
     100000 + Math.random() * 900000
   ).toString();
-  const expiryDateForEmail = new Date(new Date().getTime() + 3 * 60 * 1000); // 3 minutes from now
+  const expiryDateForEmail = new Date(new Date().getTime() + 3 * 60 * 1000); // OTP expires in 3 minutes
 
   try {
     // Encrypt the OTP code
-    const saltRounds = 10;
-    const [hashedOtpCodeForPhoneNumber, hashedOtpCodeForEmail] =
-      await Promise.all([
-        bcrypt.hash(otpCodeForPhoneNumber, saltRounds),
-        bcrypt.hash(otpCodeForEmail, saltRounds),
-      ]);
-
-    // Sending OTP via AWS SNS
-    const params = {
-      Message: `Your OTP is: ${otpCodeForPhoneNumber}`, // Message text
-      PhoneNumber: 91 + phoneNumber,
-      MessageAttributes: {
-        "AWS.SNS.SMS.SMSType": {
-          DataType: "String",
-          StringValue: "Transactional",
-        },
-      },
-    };
-
-    const command = new PublishCommand(params);
-    const publishTextPromise = sns.send(command);
+    const hashedOtpCodeForEmail = await bcrypt.hash(otpCodeForEmail, 10);
 
     // Prepare to send OTP via Email
     const mailOptions = {
       from: process.env.GMAIL_EMAIL_ID,
       to: email,
       subject: "Email Verification",
-      html: `<p>Your OTP for Email Verification : ${otpCodeForEmail}</p>`,
+      html: `<p>Your OTP for Email Verification: ${otpCodeForEmail}</p>`,
     };
 
-    // Execute both OTP sendings
-    const [smsResponse, emailResponse] = await Promise.all([
-      publishTextPromise,
-      transporter.sendMail(mailOptions),
-    ]);
-    // const publishTextPromise = await sns.send(command);
-    // console.log(publishTextPromise);
+    // Send OTP via Email
+    const emailResponse = await transporter.sendMail(mailOptions);
 
-    // transporter.sendMail(mailOptions);
-
-    // Handle SMS and Email responses
-    console.log("smsResponse :",smsResponse, "emailResponse :",emailResponse)
-    const smsSuccess = smsResponse.status === "fulfilled";
-    const emailSuccess = emailResponse.status === "fulfilled";
-
-    // Update database with new OTP details for phone and email
-    // Update the OTP for the phone number
-    const updatedOtpPhone = await OTP.findOneAndUpdate(
-      {
-        contactMethod: "phoneNumber",
-        contactValue: phoneNumber,
-      },
-      {
-        code: hashedOtpCodeForPhoneNumber,
-        expires: expiryDateForPhoneNumber,
-      },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
-
-    console.log("----------", updatedOtpPhone)
-
-    // Update the OTP for the email
+    // Update the OTP for the email in the database
     const updatedOtpEmail = await OTP.findOneAndUpdate(
       {
         contactMethod: "email",
@@ -260,39 +199,22 @@ export const sendOTP = async (req, res) => {
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
-    // const updatedOtpEmail = await OTP.findOneAndUpdate(
-    //   { method: 'email', identifier: email },
-    //   { code: hashedOtpCodeForEmail, expires: expiryDateForEmail },
-    //   { new: true, upsert: true, setDefaultsOnInsert: true }
-    // );
-
-    // Send success response
     // Send success response
     res.status(200).json({
       success: true,
-      message: "OTP sent to phone and email.",
+      message: "OTP sent successfully via email.",
       data: {
-        sms: {
-          success: smsSuccess,
-          message: smsSuccess
-            ? "OTP sent successfully via SMS."
-            : smsResponse.reason?.message || "Failed to send SMS.",
-        },
-        email: {
-          success: emailSuccess,
-          message: emailSuccess
-            ? "OTP sent successfully via email."
-            : emailResponse.reason?.message || "Failed to send email.",
-        },
-        phoneExpires: updatedOtpPhone.expires,
+        email: email,
         emailExpires: updatedOtpEmail.expires,
       },
     });
   } catch (error) {
-    console.error("Error in OTP handling:", error);
-    res
-      .status(500)
-      .json({ success: false, error: "Server error", details: error.message });
+    console.error("Error in sending OTP via email:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to send OTP via email.",
+      error: error.message,
+    });
   }
 };
 
@@ -300,45 +222,47 @@ export const sendOTP = async (req, res) => {
 // @Body Params:
 // phoneNumber, otp
 export const verifyGuestUser = async (req, res) => {
-  const { email, phoneNumber, otp } = req.body;
-  const result = await verifyOtp(phoneNumber, otp);
-  if (!result.success) {
-    return res.status(400).json({ success: false, message: result.message });
+  const { email, otpEmail, isRegistering = false } = req.body;
+  // const { phoneNumber, otpPhone } = req.body;
+
+  // Verify the email OTP only
+  const emailResult = await verifyOtp("email", email, otpEmail);
+
+  if (!emailResult.success) {
+    return res
+      .status(400)
+      .json({ success: false, message: emailResult.message });
   }
 
-  // Make changes here regarding the Guest User----------------->
-  // If the user is a guest user, generate a token
-  // if (result.success) {
-  //   const guestUser = await GuestUser.findOne({ phoneNumber });
-  //   const payload = {
-  //     userId: guestUser._id,
-  //     email: guestUser.email,
-  //     role: "guest",
-  //   };
-  //   const token = jwt.sign(payload, process.env.JWT_SECRET, {
-  //     expiresIn: "1h",
-  //   });
+  if (isRegistering) {
+    // If in registration process, just return success without creating a guest user
+    return res.status(200).json({
+      success: true,
+      message: "Email verified successfully.",
+    });
+  } else {
+    // Find or create the guest user based on email verification
+    let userEntry = await GuestUser.findOne({ email: email });
 
-  //   return res.status().json({
-  //     message: "Guest user verified successfully.",
-  //     token: token,
-  //   });
-  // }
-  let userEntry;
-  if (result.success) {
-    userEntry = await GuestUser.findOne({ email: email });
     if (!userEntry) {
-      const atIndex = email.indexOf("@");
-      const name = email.slice(0, atIndex);
-      userEntry = new GuestUser({ name, email, phoneNumber });
+      // Create a new guest user if one does not exist with the verified email
+      const newUser = new GuestUser({
+        name: email.substring(0, email.indexOf("@")),
+        email: email,
+      });
+      await newUser.save();
+      return res.status(201).json({
+        success: true,
+        message: "Guest user created successfully with verified email.",
+        details: newUser,
+      });
     } else {
-      userEntry.phoneNumber = phoneNumber;
+      // If user already exists, just confirm the email verification
+      return res.status(200).json({
+        success: true,
+        message: "Email already verified for existing guest user.",
+        details: userEntry,
+      });
     }
-    await userEntry.save();
   }
-
-  res.status(200).json({
-    success: true,
-    message: "OTP verified successfully",
-  });
 };

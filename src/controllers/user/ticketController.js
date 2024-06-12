@@ -9,19 +9,7 @@ import CanceledTicket from "../../models/canceledTicketModel.js";
 import crypto from "crypto";
 import Payment from "../../models/paymentModel.js";
 import { initiateRefund } from "../razorpay/razorpayController.js";
-
-// async function calculateTotalAmount(ticketTypes, bookingDate) {
-//   const pricing = await Pricing.findOne().sort({ lastUpdated: -1 }).limit(1); // Assuming the latest pricing is what we want
-//   const isWeekend = [0, 6].includes(new Date(bookingDate).getDay()); // 0 = Sunday, 6 = Saturday
-
-//   return ticketTypes.reduce((total, ticketType) => {
-//     const priceDetail = pricing.prices.find((p) => p.type === ticketType.type);
-//     const price = isWeekend
-//       ? priceDetail.weekEndPrice
-//       : priceDetail.weekDayPrice;
-//     return total + ticketType.numberOfTickets * price;
-//   }, 0);
-// }
+import { transporter } from "../../config/config.js";
 
 async function calculateTotalAmount(
   ticketTypes,
@@ -73,7 +61,7 @@ async function checkSameDayEvent(bookingDate, specialEventId) {
 export const calculateTotal = async (req, res) => {
   const { bookingDate, ticketTypes, specialEventId, couponCode } = req.body;
   const token = req.headers.authorization?.split(" ")[1];
-  const { email, phoneNumber } = req.body;
+  const { email } = req.body;
 
   try {
     const now = moment().tz("Asia/Kolkata");
@@ -96,14 +84,14 @@ export const calculateTotal = async (req, res) => {
         return res.status(404).json({ message: "User not found" });
       }
       couponValidForUser = true;
-    } else if (email && phoneNumber) {
+    } else if (email) {
       userEntry = await GuestUser.findOne({ email: email });
       userType = "Guest";
       if (!userEntry) {
         const atIndex = email.indexOf("@");
         const name = email.slice(0, atIndex);
         console.log(name);
-        userEntry = new GuestUser({ name, email, phoneNumber });
+        userEntry = new GuestUser({ name, email });
         await userEntry.save();
       }
       couponValidForUser = true;
@@ -211,7 +199,6 @@ export const bookTickets = async (req, res) => {
     slotIndex,
     ticketTypes,
     email,
-    phoneNumber,
     paymentId,
     orderId,
     signature,
@@ -266,14 +253,14 @@ export const bookTickets = async (req, res) => {
       if (!userEntry) {
         return res.status(404).json({ message: "User not found" });
       }
-    } else if (email && phoneNumber) {
+    } else if (email) {
       // Check for an existing guest user
       userEntry = await GuestUser.findOne({ email: email });
       if (!userEntry) {
         // If no guest user exists, create a new one
         const atIndex = email.indexOf("@");
         const name = email.slice(0, atIndex);
-        userEntry = new GuestUser({ name, email, phoneNumber });
+        userEntry = new GuestUser({ name, email });
         await userEntry.save();
       }
       userType = "Guest";
@@ -336,6 +323,26 @@ export const bookTickets = async (req, res) => {
     payment.ticketId = newTicket._id;
     await payment.save();
 
+    // Send an email to the guest user if it's a guest user booking
+    if (userType === "Guest") {
+      const mailOptions = {
+        from: process.env.EMAIL_FROM_ADDRESS,
+        to: userEntry.email,
+        subject: "Your Ticket Booking Confirmation",
+        html: `<h1>Ticket Booking Successful</h1>
+           <p>Your tickets have been successfully booked.</p>
+           <p>You can manage your booking at: <a href="${process.env.FRONTEND_URL}/manageBookings/${userEntry._id}">Manage Booking</a></p>`,
+      };
+
+      transporter.sendMail(mailOptions, function (error, info) {
+        if (error) {
+          console.log("Email could not be sent: " + error);
+        } else {
+          console.log("Email sent: " + info.response);
+        }
+      });
+    }
+
     res.status(201).json({
       success: true,
       message: "Ticket booked successfully",
@@ -362,15 +369,18 @@ export const getTickets = async (req, res) => {
       const user = await User.findById(decoded.userId);
 
       if (!user) {
+        console.log("user not found")
         return res.status(404).json({ message: "User not found" });
       }
 
       const tickets = await Ticket.find({ userId: user._id });
       if (tickets.length === 0) {
+        console.log("ticket not found")
         return res
           .status(404)
           .json({ message: "No tickets found for this user" });
       }
+      console.log("ticket found")
       return res.status(200).json(tickets);
     } else if (guestUserId) {
       // Handle guest user
@@ -406,17 +416,17 @@ export const cancelTickets = async (req, res) => {
 
   try {
     let decodedUserId = null;
-    if(token ){
+    if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       decodedUserId = decoded.userId;
     } else if (userId) {
       const user = GuestUser.findById(userId);
-      if(user){
-        decodedUserId = userId
+      if (user) {
+        decodedUserId = userId;
       } else {
         return res
-        .status(404)
-        .json({ success: false, message: "User Not Found" });
+          .status(404)
+          .json({ success: false, message: "User Not Found" });
       }
     } else {
       return res

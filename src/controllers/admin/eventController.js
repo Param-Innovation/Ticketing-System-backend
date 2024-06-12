@@ -2,11 +2,25 @@ import Event from "../../models/eventModel.js";
 
 // List all events
 export const listEvents = async (req, res) => {
+  const { eventId } = req.params;
   try {
-    const events = await Event.find();
-    res.status(200).json(events);
+    if (eventId) {
+      const event = await Event.findById(eventId);
+      console.log(event);
+      if (!event) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Event not found" });
+      }
+      return res.status(200).json({ success: true, data:event });
+    } else {
+      const events = await Event.find();
+      res.status(200).json({ success: true, data:events });
+    }
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error", error: error.message });
   }
 };
 
@@ -40,13 +54,17 @@ export const addEvent = async (req, res) => {
 
     await newEvent.save();
 
-    res
-      .status(201)
-      .json({ message: "Event added successfully", event: newEvent });
+    res.status(201).json({
+      success: true,
+      message: "Event added successfully",
+      event: newEvent,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Failed to add event", error: error.message });
+    res.status(500).json({
+      success: false,
+      message: "Failed to add event",
+      error: error.message,
+    });
   }
 };
 
@@ -65,7 +83,9 @@ export const editEvent = async (req, res) => {
   try {
     const event = await Event.findById(id);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Event not found" });
     }
 
     event.name = name || event.name;
@@ -78,11 +98,15 @@ export const editEvent = async (req, res) => {
 
     await event.save();
 
-    res.status(200).json({ message: "Event updated successfully", event });
-  } catch (error) {
     res
-      .status(500)
-      .json({ message: "Failed to update event", error: error.message });
+      .status(200)
+      .json({ success: true, message: "Event updated successfully", event });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to update event",
+      error: error.message,
+    });
   }
 };
 
@@ -93,15 +117,21 @@ export const removeEvent = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const event = await Event.findByIdAndRemove(id);
+    const event = await Event.findByIdAndDelete(id);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Event not found" });
     }
 
-    res.status(200).json({ message: "Event removed successfully" });
-  } catch (error) {
     res
-      .status(500)
-      .json({ message: "Failed to remove event", error: error.message });
+      .status(200)
+      .json({ success: true, message: "Event removed successfully" });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to remove event",
+      error: error.message,
+    });
   }
 };

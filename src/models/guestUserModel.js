@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const guestUserSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: false },
   email: { type: String, required: true, unique: true },
-  phoneNumber: { type: String, required: true },
+  phoneNumber: { type: String },
   createdAt: { type: Date, default: Date.now },
 });
 

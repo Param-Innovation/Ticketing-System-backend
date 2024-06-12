@@ -25,6 +25,8 @@ router.put('/bookings/cancel', authenticateToken, cancelBookings);
 router.put('/bookings/:id', authenticateToken, editBooking);
 // Endpoint to get all events
 router.get('/events', authenticateToken, listEvents);
+// List a particular event
+router.get('/events/:eventId', authenticateToken, listEvents);
 // Endpoint to Add a new event
 router.post('/events', authenticateToken, addEvent);
 // Endpoint to Edit an existing event

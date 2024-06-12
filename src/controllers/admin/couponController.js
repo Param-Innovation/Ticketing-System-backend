@@ -6,7 +6,7 @@ export const listCoupons = async (req, res) => {
   try {
     if (couponId) {
       const coupon = await Coupon.findById(couponId);
-      console.log(coupon)
+      console.log(coupon);
       if (!coupon) {
         return res.status(404).json({ message: "Coupon not found" });
       }
@@ -65,11 +65,19 @@ export const addCoupon = async (req, res) => {
 
     res
       .status(201)
-      .json({ message: "Coupon added successfully", coupon: newCoupon });
+      .json({
+        success: true,
+        message: "Coupon added successfully",
+        coupon: newCoupon,
+      });
   } catch (error) {
     res
       .status(500)
-      .json({ message: "Failed to add coupon", error: error.message });
+      .json({
+        success: false,
+        message: "Failed to add coupon",
+        error: error.message,
+      });
   }
 };
 
