@@ -297,6 +297,7 @@ export const bookTickets = async (req, res) => {
         .json({ success: false, message: "Not enough tickets available" });
     }
 
+    console.log(moment.tz(`${bookingDate}T${selectedSlot.startTime}`, "Asia/Kolkata"));
     // Decrement tickets available
     selectedSlot.ticketsAvailable -= ticketTypes.reduce(
       (sum, type) => sum + type.numberOfTickets,

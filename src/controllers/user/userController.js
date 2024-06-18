@@ -5,6 +5,8 @@ import dotenv from "dotenv";
 import { transporter } from "../../config/config.js";
 import OTP from "../../models/otpModel.js";
 import GuestUser from "../../models/guestUserModel.js";
+import CanceledTicket from "../../models/canceledTicketModel.js";
+import Ticket from "../../models/ticketModel.js";
 
 dotenv.config();
 
@@ -110,17 +112,7 @@ export const signUp = async (req, res) => {
     }
 
     // Check for guest user with the same email (and optionally the same phone number)
-    const guestUserConditions = { email };
-    // Additional Check ------------------
-    // if (phone_number) {
-    //   guestUserConditions.phone_number = phone_number; // Include phone number in the search if provided
-    // }
-
-    const existingGuestUser = await GuestUser.findOne(guestUserConditions);
-    if (existingGuestUser) {
-      // Optionally, handle the guest user data before deletion (e.g., migrate data)
-      await GuestUser.findByIdAndDelete(existingGuestUser._id);
-    }
+    const existingGuestUser = await GuestUser.findOne({ email });
 
     // Hash the password
     const saltRounds = 10;
@@ -137,10 +129,33 @@ export const signUp = async (req, res) => {
 
     // Save the user in the database
     await user.save();
+    let transferredTickets;
+    if (existingGuestUser) {
+      console.log("It's a guest user---------")
+      // Optionally, handle the guest user data before deletion (e.g., migrate data)
+      console.log("Trying to transfer tickets---------")
+      transferredTickets = await Ticket.updateMany(
+        { guestUserId: existingGuestUser._id },
+        {
+          $set: { userId: user._id, userType: "Registered", guestUserId: null },
+        }
+      );
+      console.log("Ticket transfer result :", transferredTickets)
+      
+      // Update canceled tickets
+      const canceledTickets = await CanceledTicket.updateMany(
+        { userId: existingGuestUser._id, userType: "Guest" },
+        { $set: { userId: user._id, userType: "Registered" } }
+      );
+      console.log("Canceled Ticket transfer result :", canceledTickets)
+
+      // Optionally, handle the guest user data before deletion (e.g., migrate data)
+      await GuestUser.findByIdAndDelete(existingGuestUser._id);
+    }
 
     res.status(201).json({
       success: true,
-      message: "User registered successfully",
+      message: `User registered successfully. ${transferredTickets}? 'Tickets transferred successfully':'Ticket transferred failed'`,
       userId: user._id,
       username: user.username,
       email: user.email,
