@@ -70,7 +70,9 @@ export const calculateTotal = async (req, res) => {
     if (bookingMoment.isBefore(now, "day")) {
       return res
         .status(400)
-        .json({ message: "Cannot book tickets for past dates" });
+        .json({
+          message: `Cannot book tickets for past dates , ${now} > ${bookingDate}`,
+        }); 
     }
 
     let userEntry, userType;
@@ -85,16 +87,21 @@ export const calculateTotal = async (req, res) => {
       }
       couponValidForUser = true;
     } else if (email) {
-      userEntry = await GuestUser.findOne({ email: email });
-      userType = "Guest";
-      if (!userEntry) {
-        const atIndex = email.indexOf("@");
-        const name = email.slice(0, atIndex);
-        console.log(name);
-        userEntry = new GuestUser({ name, email });
-        await userEntry.save();
+      userEntry = await User.findOne({ email: email });
+      if (userEntry) {
+        return res.status(409).json({success: false, message: "Email belongs to a registered user, Please login before proceeding"});
+      } else if(!userEntry) {
+        userEntry = await GuestUser.findOne({ email: email });
+        userType = "Guest";
+        if (!userEntry) {
+          const atIndex = email.indexOf("@");
+          const name = email.slice(0, atIndex);
+          console.log(name);
+          userEntry = new GuestUser({ name, email });
+          await userEntry.save();
+        }
+        couponValidForUser = true;
       }
-      couponValidForUser = true;
     }
 
     let totalAmount = await calculateTotalAmount(
@@ -213,7 +220,9 @@ export const bookTickets = async (req, res) => {
       // 'day' checks only date parts, ignoring time
       return res
         .status(400)
-        .json({ message: "Cannot book tickets for past dates" });
+        .json({
+          message: `Cannot book tickets for past dates , ${now} > ${bookingMoment}`,
+        });
     }
 
     console.log(
@@ -297,7 +306,9 @@ export const bookTickets = async (req, res) => {
         .json({ success: false, message: "Not enough tickets available" });
     }
 
-    console.log(moment.tz(`${bookingDate}T${selectedSlot.startTime}`, "Asia/Kolkata"));
+    console.log(
+      moment.tz(`${bookingDate}T${selectedSlot.startTime}`, "Asia/Kolkata")
+    );
     // Decrement tickets available
     selectedSlot.ticketsAvailable -= ticketTypes.reduce(
       (sum, type) => sum + type.numberOfTickets,
@@ -370,18 +381,18 @@ export const getTickets = async (req, res) => {
       const user = await User.findById(decoded.userId);
 
       if (!user) {
-        console.log("user not found")
+        console.log("user not found");
         return res.status(404).json({ message: "User not found" });
       }
 
       const tickets = await Ticket.find({ userId: user._id });
       if (tickets.length === 0) {
-        console.log("ticket not found")
+        console.log("ticket not found");
         return res
           .status(404)
           .json({ message: "No tickets found for this user" });
       }
-      console.log("ticket found")
+      console.log("ticket found");
       return res.status(200).json(tickets);
     } else if (guestUserId) {
       // Handle guest user
