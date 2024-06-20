@@ -68,11 +68,9 @@ export const calculateTotal = async (req, res) => {
     const bookingMoment = moment.tz(bookingDate, "Asia/Kolkata");
 
     if (bookingMoment.isBefore(now, "day")) {
-      return res
-        .status(400)
-        .json({
-          message: `Cannot book tickets for past dates , ${now} > ${bookingDate}`,
-        }); 
+      return res.status(400).json({
+        message: `Cannot book tickets for past dates , ${now} > ${bookingDate}`,
+      });
     }
 
     let userEntry, userType;
@@ -89,8 +87,12 @@ export const calculateTotal = async (req, res) => {
     } else if (email) {
       userEntry = await User.findOne({ email: email });
       if (userEntry) {
-        return res.status(409).json({success: false, message: "Email belongs to a registered user, Please login before proceeding"});
-      } else if(!userEntry) {
+        return res.status(409).json({
+          success: false,
+          message:
+            "Email belongs to a registered user, Please login before proceeding",
+        });
+      } else if (!userEntry) {
         userEntry = await GuestUser.findOne({ email: email });
         userType = "Guest";
         if (!userEntry) {
@@ -193,7 +195,7 @@ export const calculateTotal = async (req, res) => {
       totalAmount -= discountAmount;
     }
 
-    res.status(200).json({ totalAmount, appliedCoupon });
+    res.status(200).json({ success: true, totalAmount, appliedCoupon });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -202,7 +204,7 @@ export const calculateTotal = async (req, res) => {
 // BOOK TICKETS FOR REGISTERD OR GUEST USER
 export const bookTickets = async (req, res) => {
   const {
-    bookingDate,
+    bookingDateRaw,
     slotIndex,
     ticketTypes,
     email,
@@ -214,15 +216,13 @@ export const bookTickets = async (req, res) => {
 
   try {
     const now = moment().tz("Asia/Kolkata");
-    const bookingMoment = moment.tz(bookingDate, "Asia/Kolkata");
+    const bookingMoment = moment.tz(bookingDateRaw, "Asia/Kolkata");
 
     if (bookingMoment.isBefore(now, "day")) {
       // 'day' checks only date parts, ignoring time
-      return res
-        .status(400)
-        .json({
-          message: `Cannot book tickets for past dates , ${now} > ${bookingMoment}`,
-        });
+      return res.status(400).json({
+        message: `Cannot book tickets for past dates , ${now} > ${bookingMoment}`,
+      });
     }
 
     console.log(
@@ -278,12 +278,12 @@ export const bookTickets = async (req, res) => {
     }
 
     // Calculate total amount before booking the ticket
-    const totalAmount = await calculateTotalAmount(ticketTypes, bookingDate);
+    const totalAmount = await calculateTotalAmount(ticketTypes, bookingDateRaw);
 
     // Book the ticket and update the slot availability
-    const slotDate = moment.tz(bookingDate, "Asia/Kolkata");
+    const slotDate = moment.tz(bookingDateRaw, "Asia/Kolkata");
     const slotDocument = await Slot.findOne({ date: slotDate });
-    // console.log(slotDocument)
+    console.log(slotDocument)
 
     if (!slotDocument) {
       return res
@@ -306,9 +306,7 @@ export const bookTickets = async (req, res) => {
         .json({ success: false, message: "Not enough tickets available" });
     }
 
-    console.log(
-      moment.tz(`${bookingDate}T${selectedSlot.startTime}`, "Asia/Kolkata")
-    );
+    // return res.json({ Message: "Testing" });
     // Decrement tickets available
     selectedSlot.ticketsAvailable -= ticketTypes.reduce(
       (sum, type) => sum + type.numberOfTickets,
@@ -317,6 +315,11 @@ export const bookTickets = async (req, res) => {
     // Save the updated slot document
     await slotDocument.save();
 
+    // Converting the 
+    const bookingDate = moment.tz(
+      `${bookingDateRaw}T${selectedSlot.startTime}`,
+      "Asia/Kolkata"
+    );
     // Create and save the ticket document
     const ticketData = {
       userId: userType === "Registered" ? userEntry._id : undefined,
@@ -472,8 +475,10 @@ export const cancelTickets = async (req, res) => {
       .utc();
 
     // Check if the booking date is at least 24 hours away
-    const currentDateTimeUTC = moment.utc();
-    if (bookingDateUTC.diff(currentDateTimeUTC, "hours") < 24) {
+    const bookingDateIST = moment(ticket.bookingDate).tz("Asia/Kolkata");
+    const currentDateTimeIST = moment().tz("Asia/Kolkata");
+    
+    if (bookingDateIST.diff(currentDateTimeIST, "hours") < 24) {
       return res.status(400).json({
         success: false,
         message:
