@@ -283,7 +283,7 @@ export const bookTickets = async (req, res) => {
     // Book the ticket and update the slot availability
     const slotDate = moment.tz(bookingDateRaw, "Asia/Kolkata");
     const slotDocument = await Slot.findOne({ date: slotDate });
-    console.log(slotDocument)
+    console.log(slotDocument);
 
     if (!slotDocument) {
       return res
@@ -315,7 +315,7 @@ export const bookTickets = async (req, res) => {
     // Save the updated slot document
     await slotDocument.save();
 
-    // Converting the 
+    // Converting the
     const bookingDate = moment.tz(
       `${bookingDateRaw}T${selectedSlot.startTime}`,
       "Asia/Kolkata"
@@ -339,24 +339,27 @@ export const bookTickets = async (req, res) => {
     await payment.save();
 
     // Send an email to the guest user if it's a guest user booking
-    if (userType === "Guest") {
-      const mailOptions = {
-        from: process.env.EMAIL_FROM_ADDRESS,
-        to: userEntry.email,
-        subject: "Your Ticket Booking Confirmation",
-        html: `<h1>Ticket Booking Successful</h1>
-           <p>Your tickets have been successfully booked.</p>
-           <p>You can manage your booking at: <a href="${process.env.FRONTEND_URL}/manageBookings/${userEntry._id}">Manage Booking</a></p>`,
-      };
 
-      transporter.sendMail(mailOptions, function (error, info) {
-        if (error) {
-          console.log("Email could not be sent: " + error);
-        } else {
-          console.log("Email sent: " + info.response);
-        }
-      });
-    }
+    const mailOptions = {
+      from: process.env.EMAIL_FROM_ADDRESS,
+      to: userEntry.email,
+      subject: "Your Ticket Booking Confirmation",
+      html: `<h1>Ticket Booking Successful</h1>
+           <p>Your tickets have been successfully booked.</p>
+           <p>You can manage your booking at ${
+             userType === "Registered"
+               ? "Manange Bookings in your account"
+               : ': <a href="${process.env.FRONTEND_URL}/manageBookings/${userEntry._id}">Manage Booking</a>'
+           }</p>`,
+    };
+
+    transporter.sendMail(mailOptions, function (error, info) {
+      if (error) {
+        console.log("Email could not be sent: " + error);
+      } else {
+        console.log("Email sent: " + info.response);
+      }
+    });
 
     res.status(201).json({
       success: true,
@@ -477,7 +480,7 @@ export const cancelTickets = async (req, res) => {
     // Check if the booking date is at least 24 hours away
     const bookingDateIST = moment(ticket.bookingDate).tz("Asia/Kolkata");
     const currentDateTimeIST = moment().tz("Asia/Kolkata");
-    
+
     if (bookingDateIST.diff(currentDateTimeIST, "hours") < 24) {
       return res.status(400).json({
         success: false,
