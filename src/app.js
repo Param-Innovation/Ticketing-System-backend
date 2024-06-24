@@ -6,6 +6,9 @@ import slotRoutes from "./routes/user/slotRoutes.js";
 import ticketRoutes from "./routes/user/ticketRoutes.js";
 import adminRoutes from "./routes/admin/adminRoutesUrls.js";
 import razorpayRoutes from "./routes/razorpay/razorpayRoutes.js";
+import passport from "passport";
+import passportSetup from "./passport/passport.js";
+import cookieSession from "cookie-session";
 
 const app = express();
 
@@ -16,6 +19,12 @@ const allowedOrigins = [
   // Add more origins as needed
 ];
 
+app.use(cookieSession({ 
+  name: 'google-auth-session', 
+  keys: ['key1', 'key2'] 
+})); 
+app.use(passport.initialize()); 
+app.use(passport.session()); 
 app.use(
   cors((req, callback) => {
     const origin = req.header("Origin");
