@@ -2,7 +2,6 @@ import Ticket from "../../models/ticketModel.js";
 import User from "../../models/userModel.js";
 import GuestUser from "../../models/guestUserModel.js";
 import Slot from "../../models/slotModel.js";
-import jwt from "jsonwebtoken";
 import moment from "moment-timezone";
 import Pricing from "../../models/pricingModel.js";
 import CanceledTicket from "../../models/canceledTicketModel.js";
@@ -60,7 +59,6 @@ async function checkSameDayEvent(bookingDate, specialEventId) {
 // CALCULATE TOTAL AMOUNT FOR THE TICKET
 export const calculateTotal = async (req, res) => {
   const { bookingDate, ticketTypes, specialEventId, couponCode } = req.body;
-  const token = req.headers.authorization?.split(" ")[1];
   const { email } = req.body;
 
   try {
@@ -76,13 +74,9 @@ export const calculateTotal = async (req, res) => {
     let userEntry, userType;
     let couponValidForUser = false;
 
-    if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      userEntry = await User.findById(decoded.userId);
-      userType = "Registered";
-      if (!userEntry) {
-        return res.status(404).json({ message: "User not found" });
-      }
+    if (req.user) {
+      userEntry = req.user;
+      userType = req.userType;
       couponValidForUser = true;
     } else if (email) {
       userEntry = await User.findOne({ email: email });
@@ -212,7 +206,6 @@ export const bookTickets = async (req, res) => {
     orderId,
     signature,
   } = req.body;
-  const token = req.headers.authorization?.split(" ")[1]; // Assumes "Bearer <token>"
 
   try {
     const now = moment().tz("Asia/Kolkata");
@@ -255,13 +248,9 @@ export const bookTickets = async (req, res) => {
 
     // Identify if it's a registered or guest user
     let userEntry, userType;
-    if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      userEntry = await User.findById(decoded.userId);
-      userType = "Registered";
-      if (!userEntry) {
-        return res.status(404).json({ message: "User not found" });
-      }
+    if (req.user) {
+      userEntry = req.user;
+      userType = req.userType;
     } else if (email) {
       // Check for an existing guest user
       userEntry = await GuestUser.findOne({ email: email });
@@ -377,21 +366,12 @@ export const bookTickets = async (req, res) => {
 
 // FETCH BOOKINGS FOR REGISTERD OR GUEST USER
 export const getTickets = async (req, res) => {
-  const token = req.headers.authorization?.split(" ")[1];
   const guestUserId = req.params.userId; // Received from x-www-form-urlencoded
 
   try {
-    if (token) {
-      // Decode token to get user info
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.userId);
+    if(req.user){
 
-      if (!user) {
-        console.log("user not found");
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      const tickets = await Ticket.find({ userId: user._id });
+      const tickets = await Ticket.find({ userId: req.user._id });
       if (tickets.length === 0) {
         console.log("ticket not found");
         return res
@@ -430,13 +410,11 @@ export const getTickets = async (req, res) => {
 // CANCEL BOOKINGS FOR REGISTERED OR GUEST USER
 export const cancelTickets = async (req, res) => {
   const { ticketId, userId } = req.body;
-  const token = req.headers.authorization?.split(" ")[1];
 
   try {
     let decodedUserId = null;
-    if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      decodedUserId = decoded.userId;
+    if (req.user) {
+      decodedUserId = req.user._id;
     } else if (userId) {
       const user = GuestUser.findById(userId);
       if (user) {

@@ -1,7 +1,5 @@
 import Razorpay from "razorpay";
 import dotenv from "dotenv";
-import jwt from "jsonwebtoken";
-import User from "../../models/userModel.js";
 import GuestUser from "../../models/guestUserModel.js";
 import Payment from "../../models/paymentModel.js";
 
@@ -43,16 +41,11 @@ export const createOrder = async (req, res) => {
     specialEventId,
     appliedCoupon,
   } = req.body;
-  const token = req.headers.authorization?.split(" ")[1]; // Assumes "Bearer <token>"
 
   try {
     let userEntry;
-    if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      userEntry = await User.findById(decoded.userId);
-      if (!userEntry) {
-        return res.status(404).json({ message: "User not found" });
-      }
+    if (req.user) {
+      userEntry = req.user;
     } else if (email || phoneNumber) {
       userEntry =
         (await GuestUser.findOne({ email })) ||

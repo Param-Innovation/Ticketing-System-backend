@@ -52,10 +52,33 @@ function generateToken(user) {
   return jwt.sign(payload, secretKey, options);
 }
 
+async function transferGuestTickets(guestUser, newUser) {
+  const transferredTickets = await Ticket.updateMany(
+    { guestUserId: guestUser._id },
+    { $set: { userId: newUser._id, userType: "Registered", guestUserId: null } }
+  );
+
+  const canceledTickets = await CanceledTicket.updateMany(
+    { userId: guestUser._id, userType: "Guest" },
+    { $set: { userId: newUser._id, userType: "Registered" } }
+  );
+
+  console.log("Ticket transfer result:", transferredTickets);
+  console.log("Canceled Ticket transfer result:", canceledTickets);
+  return transferredTickets;
+}
+
 // SignIn function...
 // @Body params:
 // email, password
 export const signIn = async (req, res) => {
+  if (req.user) {
+    return res.status(200).json({
+      success: true,
+      message: "Already signed in",
+      user: req.user,
+    });
+  }
   const { email, password } = req.body;
 
   try {
@@ -97,6 +120,13 @@ export const signIn = async (req, res) => {
 // @Body Params:
 // usernmae, email, password, phone_number
 export const signUp = async (req, res) => {
+  if (req.user) {
+    return res.status(200).json({
+      success: true,
+      message: "Already signed in",
+      user: req.user,
+    });
+  }
   const { username, email, password, phone_number } = req.body;
   // console.log(req.body)
 
@@ -131,25 +161,7 @@ export const signUp = async (req, res) => {
     await user.save();
     let transferredTickets;
     if (existingGuestUser) {
-      console.log("It's a guest user---------")
-      // Optionally, handle the guest user data before deletion (e.g., migrate data)
-      console.log("Trying to transfer tickets---------")
-      transferredTickets = await Ticket.updateMany(
-        { guestUserId: existingGuestUser._id },
-        {
-          $set: { userId: user._id, userType: "Registered", guestUserId: null },
-        }
-      );
-      console.log("Ticket transfer result :", transferredTickets)
-      
-      // Update canceled tickets
-      const canceledTickets = await CanceledTicket.updateMany(
-        { userId: existingGuestUser._id, userType: "Guest" },
-        { $set: { userId: user._id, userType: "Registered" } }
-      );
-      console.log("Canceled Ticket transfer result :", canceledTickets)
-
-      // Optionally, handle the guest user data before deletion (e.g., migrate data)
+      transferredTickets = await transferGuestTickets(existingGuestUser, user);
       await GuestUser.findByIdAndDelete(existingGuestUser._id);
     }
 

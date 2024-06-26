@@ -9,8 +9,8 @@ import razorpayRoutes from "./routes/razorpay/razorpayRoutes.js";
 import authRoutes from "./routes/auth/auth.js";
 import passport from "./passport/passport.js";
 import "./passport/passport.js";
-import cookieSession from "cookie-session";
 import session from "express-session";
+import enhanceUserContext from "./middleware/enhanceUserContext.js";
 
 const app = express();
 
@@ -66,16 +66,16 @@ app.use("/api/admin", adminRoutes);
 // Mount auth routes at /auth
 app.use("/auth", authRoutes);
 
-// Mount user routes at /api/users
-app.use("/api/users", userRoutes);
-
 // Mount slot routes at /api/slots
 app.use("/api/slots", slotRoutes);
 
+// Mount user routes at /api/users
+app.use("/api/users", enhanceUserContext, userRoutes);
+
 // Mount ticket routes at /api/tickets
-app.use("/api/tickets", ticketRoutes);
+app.use("/api/tickets", enhanceUserContext, ticketRoutes);
 
 // Mount payment routes at /api/razorpay
-app.use("/api/razorpay", razorpayRoutes);
+app.use("/api/razorpay", enhanceUserContext, razorpayRoutes);
 
 export default app;
