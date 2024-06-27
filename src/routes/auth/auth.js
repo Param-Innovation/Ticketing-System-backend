@@ -10,6 +10,7 @@ router.get("/login/success", async(req, res) => {
         error: false,
         message: "Successfully Loged In",
         user: req.user,
+        role: 'user',
       });
     } catch (err) {
       res.status(403).json({ error: true, message: err });

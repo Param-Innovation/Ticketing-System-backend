@@ -21,25 +21,16 @@ const allowedOrigins = [
   // Add more origins as needed
 ];
 
+// Setup CORS
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json()); // Middleware to parse JSON request bodies
 app.use(express.urlencoded({ extended: true })); // For parsing application/x-www-form-urlencoded
-
-app.use(
-  cors((req, callback) => {
-    const origin = req.header("Origin");
-    // Check if the incoming origin is in the allowedOrigins array
-    // If it is, set the origin value in the options to allow that origin
-    // If not, use false to deny the request
-    const corsOptions = {
-      origin: allowedOrigins.includes(origin) ? origin : false,
-      methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-      credentials: true, // Reflect the request's origin in the CORS response headers (important for credentials)
-      optionsSuccessStatus: 204,
-    };
-    callback(null, corsOptions); // Callback expects two parameters: error and options
-  })
-);
-
 
 // app.use(
 //   cookieSession({
@@ -64,7 +55,7 @@ app.use("/api/admin", adminRoutes);
 // USER side APIs
 
 // Mount auth routes at /auth
-app.use("/auth", authRoutes);
+app.use("/api/auth", authRoutes);
 
 // Mount slot routes at /api/slots
 app.use("/api/slots", slotRoutes);

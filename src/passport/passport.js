@@ -7,7 +7,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID, // Your Credentials here.
       clientSecret: process.env.GOOLE_CLIENT_SECRET, // Your Credentials here.
-      callbackURL: "/auth/google/callback",
+      callbackURL: "/api/auth/google/callback",
       scope: ["profile", "email"],
       passReqToCallback: true,
     },
@@ -38,10 +38,18 @@ passport.use(
 passport.serializeUser((user, done) => {
   done(null, user);
 });
-passport.deserializeUser((user, done) => {
-  User.findById(id, (err, user) => {
-    done(err, user);  // Deserialize the user by ID
-});
+// passport.deserializeUser((id, done) => {
+//   User.findById(id, (err, user) => {
+//     done(err, user); // Deserialize the user by ID
+//   });
+// });
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await User.findById(id);
+    done(null, user); // User object will be attached to the request object as req.user in your routes
+  } catch (err) {
+    done(err, null); // Handle errors
+  }
 });
 
 export default passport;
